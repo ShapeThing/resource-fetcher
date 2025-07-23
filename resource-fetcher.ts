@@ -28,7 +28,7 @@ export const getResource = async ({
 }: {
   subject: Term;
   predicates?: Term[];
-} & QueryExecutor) => {
+} & QueryExecutor): Promise<Store> => {
   const result = await engine.queryQuads(generateQuery(subject, predicates), {
     sources,
     unionDefaultGraph: true,
