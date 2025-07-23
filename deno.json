@@ -1,0 +1,8 @@
+{
+  "imports": {
+    "@comunica/query-sparql": "npm:@comunica/query-sparql@^4.3.0",
+    "@comunica/types": "npm:@comunica/types@^4.2.0",
+    "@rdfjs/types": "npm:@rdfjs/types@^2.0.1",
+    "n3": "npm:n3@^1.26.0"
+  }
+}
