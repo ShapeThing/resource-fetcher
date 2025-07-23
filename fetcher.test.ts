@@ -1,23 +1,43 @@
-import { Parser, Store, DataFactory } from 'n3'
-import { QueryEngine } from '@comunica/query-sparql'
+import { Parser, Store, DataFactory } from "n3";
+import { QueryEngine } from "@comunica/query-sparql";
+import { getResource } from "./fetcher.ts";
+import { write } from "@jeswr/pretty-turtle";
 import { expect } from "jsr:@std/expect";
-import { getResource } from './fetcher.ts';
 
 const { namedNode } = DataFactory;
 
-const allanDoyle = await Deno.readTextFile('./test-support/allan-doyle.ttl')
+const tests = Deno.readDir("./test-support");
 const parser = new Parser({
-    baseIRI: 'http://example.org/',
-    format: 'text/turtle',
-})
-const quads = parser.parse(allanDoyle)
-const store = new Store(quads)
+  baseIRI: "https://example.org/",
+  format: "text/turtle",
+});
 const engine = new QueryEngine();
 
 Deno.test("getResource function retrieves the correct resource", async () => {
-  const result = await getResource(namedNode('https://example.org/allanDoyle'), engine, [store]);
-  console.table(
-    [...result].map((i) => [i.subject.value, i.predicate.value, i.object.value])
-  );
-//   expect(result).toEqual(expect.any(Object));
+  for await (const testFolder of tests) {
+    const input = await Deno.readTextFile(
+      `./test-support/${testFolder.name}/input.ttl`
+    );
+    const iri = await Deno.readTextFile(`./test-support/${testFolder.name}/iri.txt`);
+    const expectedOutput = await Deno.readTextFile(
+      `./test-support/${testFolder.name}/output.ttl`
+    );
+    const quads = parser.parse(input);
+    const store = new Store(quads);
+
+    const result = await getResource({
+      iri: namedNode(iri),
+      engine,
+      sources: [store],
+    });
+
+    const serializedResult = await write(result, {
+      prefixes: {
+        ex: "https://example.org/",
+        schema: "https://schema.org/",
+      },
+    });
+
+    expect(serializedResult.trim()).toEqual(expectedOutput.trim());
+  }
 });

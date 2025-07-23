@@ -21,9 +21,9 @@
     schema:postalCode "73137" ;
     schema:addressLocality "Green Bay"
   ] ;
-  sh:shapesGraph <./person.ttl> .
+  sh:shapesGraph :PersonShape .
 
-<otherAllan> a schema:Person ;
+:otherAllan a schema:Person ;
   schema:givenName "Allen" ;
   schema:familyName "Fritsch" ;
   schema:gender schema:Male ;

@@ -2,7 +2,16 @@
   "imports": {
     "@comunica/query-sparql": "npm:@comunica/query-sparql@^4.3.0",
     "@comunica/types": "npm:@comunica/types@^4.2.0",
+    "@jeswr/pretty-turtle": "npm:@jeswr/pretty-turtle@^1.8.2",
     "@rdfjs/types": "npm:@rdfjs/types@^2.0.1",
     "n3": "npm:n3@^1.26.0"
+  },
+  "fmt": {
+    "useTabs": false,
+    "lineWidth": 160,
+    "indentWidth": 2,
+    "semiColons": false,
+    "singleQuote": true,
+    "proseWrap": "preserve"
   }
 }

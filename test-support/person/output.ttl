@@ -1,0 +1,18 @@
+@prefix ex: <https://example.org/> .
+@prefix schema: <https://schema.org/> .
+@prefix sh: <http://www.w3.org/ns/shacl#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+ex:allanDoyle a schema:Person ;
+  schema:givenName "Allan" ;
+  schema:additionalName "Reign" ;
+  schema:familyName "Doyle" ;
+  schema:gender schema:Female ;
+  schema:birthDate "1999-05-29"^^xsd:date ;
+  schema:deathDate "1981-02-25"^^xsd:date ;
+  sh:shapesGraph ex:PersonShape ;
+  schema:address [
+    schema:streetAddress "S Front Street" ;
+    schema:postalCode "73137" ;
+    schema:addressLocality "Green Bay"
+  ] .

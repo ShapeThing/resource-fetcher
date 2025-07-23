@@ -7,6 +7,7 @@
     "jsr:@std/internal@^1.0.7": "1.0.9",
     "npm:@comunica/query-sparql@^4.3.0": "4.3.0",
     "npm:@comunica/types@^4.2.0": "4.2.0",
+    "npm:@jeswr/pretty-turtle@^1.8.2": "1.8.2_@rdfjs+types@2.0.1",
     "npm:@rdfjs/types@^2.0.1": "2.0.1",
     "npm:n3@^1.26.0": "1.26.0"
   },
@@ -3331,6 +3332,14 @@
         "fsevents"
       ]
     },
+    "@jeswr/pretty-turtle@1.8.2_@rdfjs+types@2.0.1": {
+      "integrity": "sha512-Os15rA6dAAxdnEqxwvcNZ8wX6fO+gKVgiXJsVmVQ3WDiu61Srf0H/nb4X475IKnDVGDMqmd0lGTL1Lk2uxtcVA==",
+      "dependencies": [
+        "@rdfjs/types@2.0.1",
+        "n3",
+        "rdf-string-ttl"
+      ]
+    },
     "@jeswr/stream-to-string@2.0.0": {
       "integrity": "sha512-VmoW6xYRjVzdMr2njBObVSlUc5KCJT+gyuuH+tea9ZLE59XhgfLNc8ufN5Md38STxCyAJUDUVcCBfaOo11BfuA==",
       "dependencies": [
@@ -4260,6 +4269,7 @@
     "dependencies": [
       "npm:@comunica/query-sparql@^4.3.0",
       "npm:@comunica/types@^4.2.0",
+      "npm:@jeswr/pretty-turtle@^1.8.2",
       "npm:@rdfjs/types@^2.0.1",
       "npm:n3@^1.26.0"
     ]
