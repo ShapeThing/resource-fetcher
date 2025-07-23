@@ -9,6 +9,7 @@
     "npm:@comunica/types@^4.2.0": "4.2.0",
     "npm:@jeswr/pretty-turtle@^1.8.2": "1.8.2_@rdfjs+types@2.0.1",
     "npm:@rdfjs/types@^2.0.1": "2.0.1",
+    "npm:@types/n3@^1.26.0": "1.26.0",
     "npm:n3@^1.26.0": "1.26.0"
   },
   "jsr": {
@@ -4271,6 +4272,7 @@
       "npm:@comunica/types@^4.2.0",
       "npm:@jeswr/pretty-turtle@^1.8.2",
       "npm:@rdfjs/types@^2.0.1",
+      "npm:@types/n3@^1.26.0",
       "npm:n3@^1.26.0"
     ]
   }

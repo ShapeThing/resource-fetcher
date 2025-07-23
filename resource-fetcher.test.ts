@@ -1,6 +1,6 @@
 import { Parser, Store, DataFactory } from "n3";
 import { QueryEngine } from "@comunica/query-sparql";
-import { getResource } from "./fetcher.ts";
+import { getResource } from "./resource-fetcher.ts";
 import { write } from "@jeswr/pretty-turtle";
 import { expect } from "jsr:@std/expect";
 
@@ -13,12 +13,14 @@ const parser = new Parser({
 });
 const engine = new QueryEngine();
 
-Deno.test("getResource function retrieves the correct resource", async () => {
-  for await (const testFolder of tests) {
+for await (const testFolder of tests) {
+  Deno.test(`getResource ${testFolder.name}`, async () => {
     const input = await Deno.readTextFile(
       `./test-support/${testFolder.name}/input.ttl`
     );
-    const iri = await Deno.readTextFile(`./test-support/${testFolder.name}/iri.txt`);
+    const iri = await Deno.readTextFile(
+      `./test-support/${testFolder.name}/iri.txt`
+    );
     const expectedOutput = await Deno.readTextFile(
       `./test-support/${testFolder.name}/output.ttl`
     );
@@ -26,7 +28,7 @@ Deno.test("getResource function retrieves the correct resource", async () => {
     const store = new Store(quads);
 
     const result = await getResource({
-      iri: namedNode(iri),
+      subject: namedNode(iri),
       engine,
       sources: [store],
     });
@@ -39,5 +41,5 @@ Deno.test("getResource function retrieves the correct resource", async () => {
     });
 
     expect(serializedResult.trim()).toEqual(expectedOutput.trim());
-  }
-});
+  });
+}
