@@ -1,10 +1,10 @@
 # RDF Resource Fetcher
 
-A smart RDF data fetcher that retrieves all information "belonging" to a specific resource from RDF data sources, handling the complexities of blank nodes and nested data structures.
+A RDF resource fetcher that retrieves all triples "belonging" to a specific IRI from RDF data sources, handling the complexities of blank nodes and nested data structures.
 
 ## What it does
 
-**Main Goal**: Given a subject (like a person or organization), fetch ALL the data connected to it, even when that data is spread across multiple "hops" in the RDF graph.
+**Main Goal**: Given a subject IRI, fetch ALL the data connected to it, even when that data is spread across multiple "hops" in the RDF graph.
 
 ## The Problem it Solves
 
@@ -22,7 +22,7 @@ When working with RDF data, information about a single resource is often scatter
 4. **Recursively fetch deeper data** - For each blank node found, make a new query that follows the complete path from the original subject
 5. **Combine everything** - Merge all the fetched data into one complete dataset
 
-### Key Innovation: Blank Node Handling
+### Key Trick: Blank Node Handling
 
 The tricky part is **blank nodes** - these are anonymous objects in RDF that don't have permanent identifiers. This fetcher solves the blank node problem by:
 
@@ -64,20 +64,6 @@ const completeResource = await getResource({
 
 // completeResource now contains all triples belonging to the subject
 ```
-
-## Technical Details
-
-- **Recursive Architecture**: Uses recursive calls to handle nested blank nodes
-- **SPARQL CONSTRUCT Queries**: Generates dynamic CONSTRUCT queries based on predicate paths
-- **N3 Store Integration**: Uses N3 Store for efficient RDF data manipulation
-- **Comunica Integration**: Built on top of Comunica's federated query engine
-
-## Dependencies
-
-- `@rdfjs/types` - RDF/JS type definitions
-- `@comunica/query-sparql` - SPARQL query engine
-- `@comunica/types` - Comunica type definitions  
-- `n3` - RDF store and utilities
 
 ## License
 
