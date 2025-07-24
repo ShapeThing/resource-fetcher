@@ -8,8 +8,13 @@
     "npm:@comunica/query-sparql@^4.3.0": "4.3.0",
     "npm:@comunica/types@^4.2.0": "4.2.0",
     "npm:@jeswr/pretty-turtle@^1.8.2": "1.8.2_@rdfjs+types@2.0.1",
+    "npm:@rdfjs/namespace@^2.0.1": "2.0.1",
+    "npm:@rdfjs/term-set@^2.0.3": "2.0.3",
     "npm:@rdfjs/types@^2.0.1": "2.0.1",
     "npm:@types/n3@^1.26.0": "1.26.0",
+    "npm:@types/rdfjs__namespace@^2.0.10": "2.0.10",
+    "npm:@types/rdfjs__term-set@^2.0.9": "2.0.9",
+    "npm:debug@^4.4.1": "4.4.1",
     "npm:n3@^1.26.0": "1.26.0"
   },
   "jsr": {
@@ -3347,6 +3352,25 @@
         "event-emitter-promisify"
       ]
     },
+    "@rdfjs/data-model@2.1.0": {
+      "integrity": "sha512-pnjwSqDCXxxJQPm3TyDaqoWynYYQBl1pZC7rIPhdck7RbcEVF8hIBg5vXXosUbNcW3qwyAEBtYGojoWRnxBPew==",
+      "bin": true
+    },
+    "@rdfjs/namespace@2.0.1": {
+      "integrity": "sha512-U85NWVGnL3gWvOZ4eXwUcv3/bom7PAcutSBQqmVWvOaslPy+kDzAJCH1WYBLpdQd4yMmJ+bpJcDl9rcHtXeixg==",
+      "dependencies": [
+        "@rdfjs/data-model"
+      ]
+    },
+    "@rdfjs/term-set@2.0.3": {
+      "integrity": "sha512-DyXrKWEx+mtAFUZVU7bc3Va6/KZ8PsIp0RVdyWT9jfDgI/HCvNisZaBtAcm+SYTC45o+7WLkbudkk1bfaKVB0A==",
+      "dependencies": [
+        "@rdfjs/to-ntriples"
+      ]
+    },
+    "@rdfjs/to-ntriples@3.0.1": {
+      "integrity": "sha512-gjoPAvh4j7AbGMjcDn/8R4cW+d/FPtbfbMM0uQXkyfBFtNUW2iVgrqsgJ65roLc54Y9A2TTFaeeTGSvY9a0HCQ=="
+    },
     "@rdfjs/types@1.1.2": {
       "integrity": "sha512-wqpOJK1QCbmsGNtyzYnojPU8gRDPid2JO0Q0kMtb4j65xhCK880cnKAfEOwC+dX85VJcCByQx5zOwyyfCjDJsg==",
       "dependencies": [
@@ -3401,6 +3425,18 @@
       "integrity": "sha512-R5muMcZob3/Jjchn5LcO8jdKwSCbzqmPB6ruBxMcf9kbxtniZHP327s6C37iOfuw8mbKK3cAQa7sEl7afLrQ8A==",
       "dependencies": [
         "undici-types@6.21.0"
+      ]
+    },
+    "@types/rdfjs__namespace@2.0.10": {
+      "integrity": "sha512-xoVzEIOxcpyteEmzaj94MSBbrBFs+vqv05joMhzLEiPRwsBBDnhkdBCaaDxR1Tf7wOW0kB2R1IYe4C3vEBFPgA==",
+      "dependencies": [
+        "@rdfjs/types@2.0.1"
+      ]
+    },
+    "@types/rdfjs__term-set@2.0.9": {
+      "integrity": "sha512-RRXs5DwFGanZyT705f7KLSiN68gUVUtGWTp508CXJhLfD7AWmilqc1BLgLUoac48h3pnh9w5lRhwFm6fj1ZE5Q==",
+      "dependencies": [
+        "@rdfjs/types@2.0.1"
       ]
     },
     "@types/readable-stream@2.3.15": {
@@ -3569,6 +3605,12 @@
       "integrity": "sha512-uKm5PU+MHTootlWEY+mZ4vvXoCn4fLQxT9dSc1sXVMSFkINTJVN8cAQROpwcKm8bJ/c7rgZVIBWzH5T78sNZZw==",
       "dependencies": [
         "node-fetch"
+      ]
+    },
+    "debug@4.4.1": {
+      "integrity": "sha512-KcKCqiftBJcZr++7ykoDIEwSa3XWowTfNPo92BYxjXiyYEVrUQh2aLyhxBCwww+heortUFxEJYcRzosstTEBYQ==",
+      "dependencies": [
+        "ms"
       ]
     },
     "dom-serializer@2.0.0": {
@@ -4271,8 +4313,13 @@
       "npm:@comunica/query-sparql@^4.3.0",
       "npm:@comunica/types@^4.2.0",
       "npm:@jeswr/pretty-turtle@^1.8.2",
+      "npm:@rdfjs/namespace@^2.0.1",
+      "npm:@rdfjs/term-set@^2.0.3",
       "npm:@rdfjs/types@^2.0.1",
       "npm:@types/n3@^1.26.0",
+      "npm:@types/rdfjs__namespace@^2.0.10",
+      "npm:@types/rdfjs__term-set@^2.0.9",
+      "npm:debug@^4.4.1",
       "npm:n3@^1.26.0"
     ]
   }

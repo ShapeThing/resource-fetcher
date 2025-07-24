@@ -1,19 +1,22 @@
 import { Parser, Store, DataFactory } from "n3";
 import { QueryEngine } from "@comunica/query-sparql";
-import { getResource } from "./resource-fetcher.ts";
+import { getResource, log } from "./resource-fetcher.ts";
 import { write } from "@jeswr/pretty-turtle";
 import { expect } from "jsr:@std/expect";
 
 const { namedNode } = DataFactory;
 
-const tests = Deno.readDir("./test-support");
+const dir = [...Deno.readDirSync("./test-support")];
 const parser = new Parser({
   baseIRI: "https://example.org/",
   format: "text/turtle",
 });
 const engine = new QueryEngine();
 
-for await (const testFolder of tests) {
+const filtered = dir.some(folder => folder.name.endsWith('.only')) ? dir.filter(folder => folder.name.endsWith('.only')) : dir
+const filtered2 = filtered.filter(folder => !folder.name.endsWith('.skip'))
+
+for (const testFolder of filtered2) {
   Deno.test(`getResource ${testFolder.name}`, async () => {
     const input = await Deno.readTextFile(
       `./test-support/${testFolder.name}/input.ttl`
@@ -34,11 +37,12 @@ for await (const testFolder of tests) {
     });
 
     const serializedResult = await write(result, {
-      prefixes: {
-        ex: "https://example.org/",
-        schema: "https://schema.org/",
-      },
+      prefixes: (parser as any)._prefixes,
     });
+
+    if (serializedResult.trim() !== expectedOutput.trim()) {
+      log(serializedResult.trim())
+    }
 
     expect(serializedResult.trim()).toEqual(expectedOutput.trim());
   });

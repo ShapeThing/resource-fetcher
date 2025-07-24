@@ -1,7 +1,21 @@
-import type { Term } from "@rdfjs/types";
+import type {
+  Bindings,
+  Quad,
+  Quad_Object,
+  Quad_Predicate,
+  Quad_Subject,
+  Term,
+} from "@rdfjs/types";
 import type { QueryEngine } from "@comunica/query-sparql";
 import type { QuerySourceUnidentified } from "@comunica/types";
 import { Store } from "n3";
+import namespace from "@rdfjs/namespace";
+import debug from "debug";
+
+export const log = debug("resource-fetcher");
+
+const sh = namespace("http://www.w3.org/ns/shacl#");
+const rdf = namespace("http://www.w3.org/1999/02/22-rdf-syntax-ns#");
 
 /**
  * The trick of this fetcher,
@@ -11,10 +25,14 @@ import { Store } from "n3";
  * If needed it becomes subject to predicate[] to subject.
  */
 
-type QueryExecutor = {
-  engine: QueryEngine;
-  sources: [QuerySourceUnidentified, ...QuerySourceUnidentified[]];
-};
+type Rule = (quad: Quad, store: Store) => boolean;
+
+const rules: Rule[] = [
+  (quad) => quad.object.termType === "BlankNode",
+  // (quad) => quad.predicate.equals(sh("node")),
+];
+
+// TODO make the query work for all of quadsToExpand
 
 /**
  * Given a subject IRI and an engine with sources,
@@ -28,25 +46,30 @@ export const getResource = async ({
 }: {
   subject: Term;
   predicates?: Term[];
-} & QueryExecutor): Promise<Store> => {
-  const result = await engine.queryQuads(generateQuery(subject, predicates), {
+  engine: QueryEngine;
+  sources: [QuerySourceUnidentified, ...QuerySourceUnidentified[]];
+}): Promise<Store> => {
+  const query = generateQuery(subject, predicates);
+
+  log(query);
+
+  const result = await engine.queryBindings(query, {
     sources,
     unionDefaultGraph: true,
+    baseIRI: "https://example.org/",
   });
 
-  const quads = await result.toArray();
-  const tempStore = new Store(quads);
-  const blankLeafNodes = tempStore.filter(
-    (quad) =>
-      quad.object.termType === "BlankNode" &&
-      // A leaf node's object can not be found as a subject in the store
-      !tempStore.match(quad.object as any, null, null, null).size
+  const bindings = await result.toArray();
+  const { quadsToKeep, leafQuads } = bindingsToQuads(bindings);
+
+  const quadsToExpand = leafQuads.filter((quad) =>
+    rules.some((rule) => rule(quad, quadsToKeep))
   );
 
-  const otherNodes = tempStore.difference(blankLeafNodes);
-  const store = new Store(otherNodes);
+  quadsToKeep.addAll(leafQuads.difference(quadsToExpand));
+  const store = new Store(quadsToKeep);
 
-  for (const quad of blankLeafNodes) {
+  for (const quad of quadsToExpand) {
     const childNodes = await getResource({
       subject,
       engine,
@@ -60,13 +83,8 @@ export const getResource = async ({
 };
 
 const generateQuery = (subject: Term, predicates: Term[]) => `
-  construct { 
-    ${predicates
-      .map((_predicate, index) => `?s${index} ?p${index} ?s${index + 1} .`)
-      .join("\n")}
-    ?s${predicates.length} ?p ?o
-  } WHERE {
-    GRAPH ?g {
+  select * WHERE {
+    graph ?g {
       values ?s0 { <${subject.value}> }
       ${predicates
         .map((predicate, index) => `values ?p${index} { <${predicate.value}> }`)
@@ -77,3 +95,42 @@ const generateQuery = (subject: Term, predicates: Term[]) => `
       ?s${predicates.length} ?p ?o
     }
   }`;
+
+const bindingsToQuads = (bindings: Bindings[]) => {
+  const quadsToKeep = new Store();
+  const leafQuads = new Store();
+
+  for (const binding of bindings) {
+    const subjects = [...binding.keys()]
+      .filter((key) => key.value.startsWith("s"))
+      .sort((a, b) => parseInt(b.value.slice(1)) - parseInt(a.value.slice(1)));
+
+
+    const highestSubjectIndex = parseInt(subjects[0].value.slice(1));
+    for (let i = 0; i <= highestSubjectIndex; i++) {
+      const subjectTerm = binding.get(`s${i}`);
+      const predicateTerm = binding.get(`p${i}`);
+      const objectTerm = binding.get(`s${i + 1}`);
+      if (subjectTerm && predicateTerm && objectTerm) {
+        quadsToKeep.addQuad(
+          subjectTerm as Quad_Subject,
+          predicateTerm as Quad_Predicate,
+          objectTerm as Quad_Object
+        );
+      }
+    }
+
+    const subjectTerm = binding.get(`s${highestSubjectIndex}`);
+    const predicateTerm = binding.get(`p`);
+    const objectTerm = binding.get(`o`);
+    if (subjectTerm && predicateTerm && objectTerm) {
+      leafQuads.addQuad(
+        subjectTerm as Quad_Subject,
+        predicateTerm as Quad_Predicate,
+        objectTerm as Quad_Object
+      );
+    }
+  }
+
+  return { quadsToKeep, leafQuads };
+};
