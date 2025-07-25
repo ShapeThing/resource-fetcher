@@ -12,7 +12,7 @@ import { Store } from "n3";
 import debug from "debug";
 import TermSet from "@rdfjs/term-set";
 import namespace from "@rdfjs/namespace";
-export const log = debug("resource-fetcher");
+const log = debug("resource-fetcher");
 
 const sh = namespace("http://www.w3.org/ns/shacl#");
 

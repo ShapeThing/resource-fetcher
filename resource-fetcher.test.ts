@@ -1,9 +1,11 @@
 import { DataFactory, Parser, Store } from "n3";
 import { QueryEngine } from "@comunica/query-sparql";
-import { getResource, log } from "./resource-fetcher.ts";
+import { getResource } from "./resource-fetcher.ts";
 import { write } from "@jeswr/pretty-turtle";
 import { expect } from "jsr:@std/expect";
+import debug from "debug";
 
+const log = debug("resource-fetcher");
 const { namedNode } = DataFactory;
 
 const dir = [...Deno.readDirSync("./test-support")];
