@@ -127,10 +127,11 @@ const generateSparqlQuery = (subject: Term, predicatePaths: Term[][]) => {
     .map(
       (predicates) => `
     {
-      values ?s0 { <${subject.value}> }
-      ${predicates
-        .map((predicate, index) => `values ?p${index} { <${predicate.value}> }`)
-        .join("\n")}
+      values (?s0 ${predicates
+        .map((_, index) => `?p${index}`)
+        .join(" ")}) { (<${subject.value}> ${predicates
+        .map((predicate) => `<${predicate.value}>`)
+        .join("\n")} ) }
       ${predicates
         .map((_predicate, index) => `?s${index} ?p${index} ?s${index + 1} .`)
         .join("\n")}
