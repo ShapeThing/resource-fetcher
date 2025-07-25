@@ -9,13 +9,10 @@ import type {
 import type { QueryEngine } from "@comunica/query-sparql";
 import type { QuerySourceUnidentified } from "@comunica/types";
 import { Store } from "n3";
-import namespace from "@rdfjs/namespace";
 import debug from "debug";
+import TermSet from '@rdfjs/term-set'
 
 export const log = debug("resource-fetcher");
-
-const sh = namespace("http://www.w3.org/ns/shacl#");
-const rdf = namespace("http://www.w3.org/1999/02/22-rdf-syntax-ns#");
 
 /**
  * The trick of this fetcher,
@@ -32,8 +29,6 @@ const rules: Rule[] = [
   // (quad) => quad.predicate.equals(sh("node")),
 ];
 
-// TODO make the query work for all of quadsToExpand
-
 /**
  * Given a subject IRI and an engine with sources,
  * fetches all triples 'belonging' to a subject.
@@ -49,42 +44,80 @@ export const getResource = async ({
   engine: QueryEngine;
   sources: [QuerySourceUnidentified, ...QuerySourceUnidentified[]];
 }): Promise<Store> => {
-  const query = generateQuery(subject, predicates);
-
-  log(query);
-
-  const result = await engine.queryBindings(query, {
+  const { quadsToKeep, leafQuads, quadsToExpand } = await executeQueryAndFilter(
+    subject,
+    [predicates],
+    engine,
     sources,
-    unionDefaultGraph: true,
-    baseIRI: "https://example.org/",
-  });
-
-  const bindings = await result.toArray();
-  const { quadsToKeep, leafQuads } = bindingsToQuads(bindings);
-
-  const quadsToExpand = leafQuads.filter((quad) =>
-    rules.some((rule) => rule(quad, quadsToKeep))
+    new Store()
   );
 
   quadsToKeep.addAll(leafQuads.difference(quadsToExpand));
   const store = new Store(quadsToKeep);
+  if (quadsToExpand.size === 0) return store;
 
-  for (const quad of quadsToExpand) {
-    const childNodes = await getResource({
-      subject,
-      engine,
-      sources,
-      predicates: [...predicates, quad.predicate],
-    });
-    store.addAll(childNodes);
+  const predicatesToExpand = new TermSet([...quadsToExpand].map((quad) => quad.predicate));
+  const expansionPaths = [...predicatesToExpand].map((predicate) => [
+    ...predicates,
+    predicate,
+  ]);
+
+  const {
+    quadsToKeep: expansionQuadsToKeep,
+    leafQuads: expansionLeafQuads,
+    quadsToExpand: newQuadsToExpand,
+  } = await executeQueryAndFilter(
+    subject,
+    expansionPaths,
+    engine,
+    sources,
+    store
+  );
+
+  store.addAll(expansionQuadsToKeep);
+
+  if (newQuadsToExpand.size > 0) {
+    for (const expansionPath of expansionPaths) {
+      const childNodes = await getResource({
+        subject,
+        engine,
+        sources,
+        predicates: expansionPath,
+      });
+      store.addAll(childNodes);
+    }
+  } else {
+    store.addAll(expansionLeafQuads);
   }
 
   return store;
 };
 
-const generateQuery = (subject: Term, predicates: Term[]) => `
-  select * WHERE {
-    graph ?g {
+const executeQueryAndFilter = async (
+  subject: Term,
+  predicatePaths: Term[][],
+  engine: QueryEngine,
+  sources: [QuerySourceUnidentified, ...QuerySourceUnidentified[]],
+  existingStore: Store
+) => {
+  const query = generateSparqlQuery(subject, predicatePaths);
+  const result = await engine.queryBindings(query, {
+    sources,
+    unionDefaultGraph: true,
+  });
+  const bindings = await result.toArray();
+  const { quadsToKeep, leafQuads } = bindingsToQuads(bindings);
+  const quadsToExpand = leafQuads.filter((quad) =>
+    rules.some((rule) => rule(quad, existingStore))
+  );
+  return { quadsToKeep, leafQuads, quadsToExpand };
+};
+
+const generateSparqlQuery = (subject: Term, predicatePaths: Term[][]) => {
+  const unionClauses = predicatePaths
+    .map(
+      (predicates) => `
+    {
       values ?s0 { <${subject.value}> }
       ${predicates
         .map((predicate, index) => `values ?p${index} { <${predicate.value}> }`)
@@ -93,9 +126,20 @@ const generateQuery = (subject: Term, predicates: Term[]) => `
         .map((_predicate, index) => `?s${index} ?p${index} ?s${index + 1} .`)
         .join("\n")}
       ?s${predicates.length} ?p ?o
+    }`
+    )
+    .join("\nUNION ");
+
+  return `
+  select * WHERE {
+    graph ?g {${unionClauses}
     }
   }`;
+};
 
+/**
+ * Parses the bindings into quads and also splits the quads in standard quads and leaf quads.
+ */
 const bindingsToQuads = (bindings: Bindings[]) => {
   const quadsToKeep = new Store();
   const leafQuads = new Store();
@@ -104,7 +148,6 @@ const bindingsToQuads = (bindings: Bindings[]) => {
     const subjects = [...binding.keys()]
       .filter((key) => key.value.startsWith("s"))
       .sort((a, b) => parseInt(b.value.slice(1)) - parseInt(a.value.slice(1)));
-
 
     const highestSubjectIndex = parseInt(subjects[0].value.slice(1));
     for (let i = 0; i <= highestSubjectIndex; i++) {

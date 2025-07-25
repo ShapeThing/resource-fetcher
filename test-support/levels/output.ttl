@@ -4,4 +4,7 @@
 ex:thing ex:foo ([
     ex:bar "baz" ;
     ex:qux "quux"
+  ] [
+    ex:bar "baz1" ;
+    ex:qux "quux2"
   ]) .
