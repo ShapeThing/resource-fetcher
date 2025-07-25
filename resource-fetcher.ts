@@ -10,14 +10,16 @@ import type { QueryEngine } from "@comunica/query-sparql";
 import type { QuerySourceUnidentified } from "@comunica/types";
 import { Store } from "n3";
 import debug from "debug";
-import TermSet from '@rdfjs/term-set'
-
+import TermSet from "@rdfjs/term-set";
+import namespace from "@rdfjs/namespace";
 export const log = debug("resource-fetcher");
+
+const sh = namespace("http://www.w3.org/ns/shacl#");
 
 /**
  * The trick of this fetcher,
  * Given a fixed subject, we go into all predicates and see if there are blank nodes as objects.
- * If so we ignore the results (we can not use blank nodes from request A and combine that with request B).
+ * If so we ignore those results (we can not use blank nodes from request A and combine that with request B).
  * We also will trigger a new Sparql query that has a basic graph pattern that goes from subject to predicate to object.
  * If needed it becomes subject to predicate[] to subject.
  */
@@ -25,8 +27,14 @@ export const log = debug("resource-fetcher");
 type Rule = (quad: Quad, store: Store) => boolean;
 
 const rules: Rule[] = [
-  (quad) => quad.object.termType === "BlankNode",
-  // (quad) => quad.predicate.equals(sh("node")),
+  (quad) =>
+    quad.object.termType === "BlankNode" ||
+    (quad.object.termType === "NamedNode" &&
+      quad.object.value.includes("/.well-known/genid/")),
+  (quad) =>
+    ["node", "property", "or", "and", "hasValue", "in", "xone"].some((name) =>
+      quad.predicate.equals(sh(name))
+    ),
 ];
 
 /**
@@ -45,62 +53,63 @@ export const getResource = async ({
   sources: [QuerySourceUnidentified, ...QuerySourceUnidentified[]];
 }): Promise<Store> => {
   const { quadsToKeep, leafQuads, quadsToExpand } = await executeQueryAndFilter(
-    subject,
-    [predicates],
-    engine,
-    sources,
-    new Store()
+    {
+      subject,
+      predicatePaths: [predicates],
+      engine,
+      sources,
+    }
   );
 
   quadsToKeep.addAll(leafQuads.difference(quadsToExpand));
-  const store = new Store(quadsToKeep);
-  if (quadsToExpand.size === 0) return store;
+  if (quadsToExpand.size === 0) return quadsToKeep;
 
-  const predicatesToExpand = new TermSet([...quadsToExpand].map((quad) => quad.predicate));
+  const predicatesToExpand = new TermSet(
+    [...quadsToExpand].map((quad) => quad.predicate)
+  );
   const expansionPaths = [...predicatesToExpand].map((predicate) => [
     ...predicates,
     predicate,
   ]);
 
-  const {
-    quadsToKeep: expansionQuadsToKeep,
-    leafQuads: expansionLeafQuads,
-    quadsToExpand: newQuadsToExpand,
-  } = await executeQueryAndFilter(
+  const { quadsToKeep: expansionQuadsToKeep } = await executeQueryAndFilter({
     subject,
-    expansionPaths,
+    predicatePaths: expansionPaths,
     engine,
     sources,
-    store
-  );
+    existingStore: quadsToKeep,
+  });
 
-  store.addAll(expansionQuadsToKeep);
+  quadsToKeep.addAll(expansionQuadsToKeep);
 
-  if (newQuadsToExpand.size > 0) {
-    for (const expansionPath of expansionPaths) {
-      const childNodes = await getResource({
-        subject,
-        engine,
-        sources,
-        predicates: expansionPath,
-      });
-      store.addAll(childNodes);
-    }
-  } else {
-    store.addAll(expansionLeafQuads);
+  for (const expansionPath of expansionPaths) {
+    const childNodes = await getResource({
+      subject,
+      engine,
+      sources,
+      predicates: expansionPath,
+    });
+    quadsToKeep.addAll(childNodes);
   }
 
-  return store;
+  return quadsToKeep;
 };
 
-const executeQueryAndFilter = async (
-  subject: Term,
-  predicatePaths: Term[][],
-  engine: QueryEngine,
-  sources: [QuerySourceUnidentified, ...QuerySourceUnidentified[]],
-  existingStore: Store
-) => {
+const executeQueryAndFilter = async ({
+  subject,
+  predicatePaths,
+  engine,
+  sources,
+  existingStore = new Store(),
+}: {
+  subject: Term;
+  predicatePaths: Term[][];
+  engine: QueryEngine;
+  sources: [QuerySourceUnidentified, ...QuerySourceUnidentified[]];
+  existingStore?: Store;
+}) => {
   const query = generateSparqlQuery(subject, predicatePaths);
+  log(`Executing query: ${query}`);
   const result = await engine.queryBindings(query, {
     sources,
     unionDefaultGraph: true,
@@ -128,13 +137,9 @@ const generateSparqlQuery = (subject: Term, predicatePaths: Term[][]) => {
       ?s${predicates.length} ?p ?o
     }`
     )
-    .join("\nUNION ");
+    .join("\nunion ");
 
-  return `
-  select * WHERE {
-    graph ?g {${unionClauses}
-    }
-  }`;
+  return `select * WHERE { graph ?g { ${unionClauses} } }`;
 };
 
 /**

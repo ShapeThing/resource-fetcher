@@ -8,7 +8,8 @@ A RDF resource fetcher that retrieves all triples "belonging" to a specific IRI 
 
 ## The Problem it Solves
 
-When working with RDF data, information about a single resource is often scattered across multiple triples and may involve blank nodes (anonymous objects). Standard SPARQL queries might only fetch direct properties, missing important nested information or failing to properly handle blank nodes that can't be reliably matched across separate queries.
+When working with RDF data, information about a single resource is often scattered across multiple triples and may involve blank nodes (anonymous objects). Standard SPARQL queries might only fetch
+direct properties, missing important nested information or failing to properly handle blank nodes that can't be reliably matched across separate queries.
 
 ## How it Works
 
@@ -33,11 +34,13 @@ The tricky part is **blank nodes** - these are anonymous objects in RDF that don
 ## Example
 
 Instead of getting incomplete data like:
+
 ```turtle
 <person:john> <hasAddress> _:blank1 .
 ```
 
 The fetcher will retrieve the complete address information:
+
 ```turtle
 <person:john> <hasAddress> _:addr1 .
 _:addr1 <hasStreet> "123 Main St" .
@@ -48,19 +51,19 @@ _:addr1 <hasZip> "12345" .
 ## Usage
 
 ```typescript
-import { getResource } from '@shapething/resource-fetcher';
-import { QueryEngine } from '@comunica/query-sparql';
-import { namedNode } from '@rdfjs/data-model';
+import { getResource } from '@shapething/resource-fetcher'
+import { QueryEngine } from '@comunica/query-sparql'
+import { namedNode } from '@rdfjs/data-model'
 
-const engine = new QueryEngine();
-const sources = ['https://example.org/data.ttl'];
-const subject = namedNode('http://example.org/person/john');
+const engine = new QueryEngine()
+const sources = ['https://example.org/data.ttl']
+const subject = namedNode('http://example.org/person/john')
 
 const completeResource = await getResource({
   subject,
   engine,
-  sources
-});
+  sources,
+})
 
 // completeResource now contains all triples belonging to the subject
 ```

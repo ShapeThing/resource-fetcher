@@ -1,7 +1,7 @@
 {
   "license": "GPL-3.0-only",
   "name": "@shapething/resource-fetcher",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "exports": "./resource-fetcher.ts",
   "imports": {
     "@comunica/query-sparql": "npm:@comunica/query-sparql@^4.3.0",
@@ -18,10 +18,10 @@
   },
   "fmt": {
     "useTabs": false,
-    "lineWidth": 180,
+    "lineWidth": 200,
     "indentWidth": 2,
     "semiColons": false,
     "singleQuote": true,
-    "proseWrap": "preserve"
+    "proseWrap": "always"
   }
 }

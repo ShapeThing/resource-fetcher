@@ -1,4 +1,4 @@
-import { Parser, Store, DataFactory } from "n3";
+import { DataFactory, Parser, Store } from "n3";
 import { QueryEngine } from "@comunica/query-sparql";
 import { getResource, log } from "./resource-fetcher.ts";
 import { write } from "@jeswr/pretty-turtle";
@@ -13,8 +13,10 @@ const parser = new Parser({
 });
 const engine = new QueryEngine();
 
-const filtered = dir.some(folder => folder.name.endsWith('.only')) ? dir.filter(folder => folder.name.endsWith('.only')) : dir
-const filtered2 = filtered.filter(folder => !folder.name.endsWith('.skip'))
+const filtered = dir.some((folder) => folder.name.endsWith(".only"))
+  ? dir.filter((folder) => folder.name.endsWith(".only"))
+  : dir;
+const filtered2 = filtered.filter((folder) => !folder.name.endsWith(".skip"));
 
 for (const testFolder of filtered2) {
   Deno.test(`getResource ${testFolder.name}`, async () => {
@@ -41,7 +43,7 @@ for (const testFolder of filtered2) {
     });
 
     if (serializedResult.trim() !== expectedOutput.trim()) {
-      log(serializedResult.trim())
+      log(serializedResult.trim());
     }
 
     expect(serializedResult.trim()).toEqual(expectedOutput.trim());
