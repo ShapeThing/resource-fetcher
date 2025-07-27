@@ -1,9 +1,10 @@
 {
   "license": "GPL-3.0-only",
   "name": "@shapething/resource-fetcher",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "exports": "./resource-fetcher.ts",
   "imports": {
+    "@comunica/logger-pretty": "npm:@comunica/logger-pretty@^4.2.0",
     "@comunica/query-sparql": "npm:@comunica/query-sparql@^4.3.0",
     "@comunica/types": "npm:@comunica/types@^4.2.0",
     "@jeswr/pretty-turtle": "npm:@jeswr/pretty-turtle@^1.8.2",

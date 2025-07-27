@@ -5,6 +5,7 @@
     "jsr:@std/expect@*": "1.0.16",
     "jsr:@std/internal@^1.0.6": "1.0.9",
     "jsr:@std/internal@^1.0.7": "1.0.9",
+    "npm:@comunica/logger-pretty@^4.2.0": "4.2.0",
     "npm:@comunica/query-sparql@^4.3.0": "4.3.0",
     "npm:@comunica/types@^4.2.0": "4.2.0",
     "npm:@jeswr/pretty-turtle@^1.8.2": "1.8.2_@rdfjs+types@2.0.1",
@@ -4310,6 +4311,7 @@
   },
   "workspace": {
     "dependencies": [
+      "npm:@comunica/logger-pretty@^4.2.0",
       "npm:@comunica/query-sparql@^4.3.0",
       "npm:@comunica/types@^4.2.0",
       "npm:@jeswr/pretty-turtle@^1.8.2",

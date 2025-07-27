@@ -29,9 +29,13 @@
     sh:minCount 1 ;
     sh:path schema:address ;
     sh:order 4 ;
-    sh:nodeKind sh:BlankNode ;
-    sh:node <https://example.org/#addressShape>
+    sh:node <https://example.org/#addressShape> ;
+    sh:nodeKind sh:BlankNode
   ] .
+
+<https://example.org/#general> a sh:PropertyGroup, stsr:CollapsiblePropertyGroup ;
+  sh:name "Algemeen"@nl, "General"@en ;
+  sh:order 1 .
 
 <https://example.org/#addressShape> a sh:NodeShape, stsr:SubShape ;
   sh:targetClass schema:PostalAddress ;
@@ -70,3 +74,9 @@
     faker:generator faker:location.country ;
     sh:datatype xsd:string
   ] .
+
+<https://example.org/#street-and-housenumber> a sh:PropertyGroup, stsr:HorizontalPropertyGroup ;
+  sh:order 2 .
+
+<https://example.org/#world> a sh:PropertyGroup, stsr:HorizontalPropertyGroup ;
+  sh:order 3 .

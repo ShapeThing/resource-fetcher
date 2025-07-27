@@ -1,17 +1,17 @@
+import { LoggerPretty } from "@comunica/logger-pretty";
+import type { QueryEngine } from "@comunica/query-sparql";
+import type { QuerySourceUnidentified } from "@comunica/types";
+import namespace from "@rdfjs/namespace";
+import TermSet from "@rdfjs/term-set";
 import type {
   Bindings,
-  Quad,
   Quad_Object,
   Quad_Predicate,
   Quad_Subject,
   Term,
 } from "@rdfjs/types";
-import type { QueryEngine } from "@comunica/query-sparql";
-import type { QuerySourceUnidentified } from "@comunica/types";
-import { Store } from "n3";
 import debug from "debug";
-import TermSet from "@rdfjs/term-set";
-import namespace from "@rdfjs/namespace";
+import { Store } from "n3";
 const log = debug("resource-fetcher");
 
 const sh = namespace("http://www.w3.org/ns/shacl#");
@@ -24,18 +24,7 @@ const sh = namespace("http://www.w3.org/ns/shacl#");
  * If needed it becomes subject to predicate[] to subject.
  */
 
-type Rule = (quad: Quad, store: Store) => boolean;
-
-const rules: Rule[] = [
-  (quad) =>
-    quad.object.termType === "BlankNode" ||
-    (quad.object.termType === "NamedNode" &&
-      quad.object.value.includes("/.well-known/genid/")),
-  (quad) =>
-    ["node", "property", "or", "and", "hasValue", "in", "xone"].some((name) =>
-      quad.predicate.equals(sh(name))
-    ),
-];
+const referencePredicates = [sh("group"), sh("node"), sh("property")];
 
 /**
  * Given a subject IRI and an engine with sources,
@@ -62,7 +51,14 @@ export const getResource = async ({
   );
 
   quadsToKeep.addAll(leafQuads.difference(quadsToExpand));
-  if (quadsToExpand.size === 0) return quadsToKeep;
+
+  if (quadsToExpand.size === 0) {
+    return fetchReferences({
+      store: quadsToKeep,
+      engine,
+      sources,
+    });
+  }
 
   const predicatesToExpand = new TermSet(
     [...quadsToExpand].map((quad) => quad.predicate)
@@ -77,7 +73,6 @@ export const getResource = async ({
     predicatePaths: expansionPaths,
     engine,
     sources,
-    existingStore: quadsToKeep,
   });
 
   quadsToKeep.addAll(expansionQuadsToKeep);
@@ -92,7 +87,44 @@ export const getResource = async ({
     quadsToKeep.addAll(childNodes);
   }
 
-  return quadsToKeep;
+  return fetchReferences({
+    store: quadsToKeep,
+    engine,
+    sources,
+  });
+};
+
+const fetchReferences = async ({
+  store,
+  engine,
+  sources,
+}: {
+  store: Store;
+  engine: QueryEngine;
+  sources: [QuerySourceUnidentified, ...QuerySourceUnidentified[]];
+}): Promise<Store> => {
+  for (const referencePredicate of referencePredicates) {
+    const referenceObjects = store.match(
+      undefined,
+      referencePredicate as any,
+      undefined
+    );
+    for (const referenceObject of referenceObjects) {
+      if (!store.match(referenceObject.object as any).size) {
+        if (referenceObject.object.termType !== "NamedNode") continue;
+
+        log("Fetching reference", referenceObject.object.value);
+        const resource = await getResource({
+          subject: referenceObject.object,
+          engine,
+          sources,
+        });
+        store.addAll(resource);
+      }
+    }
+  }
+
+  return store;
 };
 
 const executeQueryAndFilter = async ({
@@ -100,24 +132,29 @@ const executeQueryAndFilter = async ({
   predicatePaths,
   engine,
   sources,
-  existingStore = new Store(),
 }: {
   subject: Term;
   predicatePaths: Term[][];
   engine: QueryEngine;
   sources: [QuerySourceUnidentified, ...QuerySourceUnidentified[]];
-  existingStore?: Store;
 }) => {
   const query = generateSparqlQuery(subject, predicatePaths);
-  log(`Executing query: ${query}`);
+  log("Executing query", query);
   const result = await engine.queryBindings(query, {
     sources,
     unionDefaultGraph: true,
+    baseIRI: "https://shapething.org/",
+    log: process.env["DEBUG"]?.includes("resource-fetcher")
+      ? new LoggerPretty({ level: "debug" })
+      : undefined,
   });
   const bindings = await result.toArray();
   const { quadsToKeep, leafQuads } = bindingsToQuads(bindings);
-  const quadsToExpand = leafQuads.filter((quad) =>
-    rules.some((rule) => rule(quad, existingStore))
+  const quadsToExpand = leafQuads.filter(
+    (quad) =>
+      quad.object.termType === "BlankNode" ||
+      (quad.object.termType === "NamedNode" &&
+        quad.object.value.includes("/.well-known/genid/"))
   );
   return { quadsToKeep, leafQuads, quadsToExpand };
 };
@@ -127,7 +164,7 @@ const generateSparqlQuery = (subject: Term, predicatePaths: Term[][]) => {
     .map(
       (predicates) => `
     {
-      values (?s0 ${predicates
+      VALUES (?s0 ${predicates
         .map((_, index) => `?p${index}`)
         .join(" ")}) { (<${subject.value}> ${predicates
         .map((predicate) => `<${predicate.value}>`)
@@ -138,9 +175,9 @@ const generateSparqlQuery = (subject: Term, predicatePaths: Term[][]) => {
       ?s${predicates.length} ?p ?o
     }`
     )
-    .join("\nunion ");
+    .join("\nUNION ");
 
-  return `select * WHERE { graph ?g { ${unionClauses} } }`;
+  return `SELECT * WHERE { GRAPH ?g { ${unionClauses} } }`;
 };
 
 /**
