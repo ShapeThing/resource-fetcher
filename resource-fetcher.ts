@@ -77,15 +77,17 @@ export const getResource = async ({
 
   quadsToKeep.addAll(expansionQuadsToKeep);
 
-  for (const expansionPath of expansionPaths) {
-    const childNodes = await getResource({
-      subject,
-      engine,
-      sources,
-      predicates: expansionPath,
-    });
-    quadsToKeep.addAll(childNodes);
-  }
+  await Promise.all(
+    expansionPaths.map(async (expansionPath) => {
+      const childNodes = await getResource({
+        subject,
+        engine,
+        sources,
+        predicates: expansionPath,
+      });
+      quadsToKeep.addAll(childNodes);
+    })
+  );
 
   return fetchReferences({
     store: quadsToKeep,
@@ -109,19 +111,20 @@ const fetchReferences = async ({
       referencePredicate as any,
       undefined
     );
-    for (const referenceObject of referenceObjects) {
-      if (!store.match(referenceObject.object as any).size) {
-        if (referenceObject.object.termType !== "NamedNode") continue;
-
-        log("Fetching reference", referenceObject.object.value);
-        const resource = await getResource({
-          subject: referenceObject.object,
-          engine,
-          sources,
-        });
-        store.addAll(resource);
-      }
-    }
+    await Promise.all(
+      [...referenceObjects].map(async (referenceObject) => {
+        if (!store.match(referenceObject.object as any).size) {
+          if (referenceObject.object.termType !== "NamedNode") return;
+          log("Fetching reference", referenceObject.object.value);
+          const resource = await getResource({
+            subject: referenceObject.object,
+            engine,
+            sources,
+          });
+          store.addAll(resource);
+        }
+      })
+    );
   }
 
   return store;
