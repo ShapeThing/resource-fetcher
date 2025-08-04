@@ -89,9 +89,8 @@ export default class ShaclCbc {
   async execute() {
     await this.#initialFetch();
     await this.#executeStep();
-    console.log(this.#debugState());
     await this.#executeStep();
-    // await this.#executeStep();
+    await this.#executeStep();
 
     console.log(this.#debugState());
   }
@@ -184,44 +183,54 @@ export default class ShaclCbc {
   }
 
   #processResultStore(store: Store) {
-    const { allPaths } = this.#getMeta();
     const pointer = grapoi({
       factory,
       dataset: store,
       term: this.subject,
     });
 
-    for (const path of allPaths) {
-      let pathTrailPointer: TrailItem = this.#trails as TrailItem;
-      for (const predicate of path) {
-        pathTrailPointer = pathTrailPointer.children.find(
-          (trailItem: TrailItem) => trailItem.predicate.equals(predicate)
-        )!;
-      }
+    for (const child of this.#trails.children) {
+      const childPaths = this.#trailToFlatList(child);
+      // TODO gather all Quads for childPaths so we can ask if there are any leaf nodes that are blank nodes.
+      // TODO guard against cycles in the RDF graph, as this can lead to infinite loops.
 
-      let pathDataPointer = pointer;
-      for (const predicate of path)
-        pathDataPointer = pathDataPointer.out(predicate);
+      for (const path of childPaths) {
+        let pathTrailPointer: TrailItem = this.#trails as TrailItem;
+        for (const predicate of path) {
+          pathTrailPointer = pathTrailPointer.children.find(
+            (trailItem: TrailItem) => trailItem.predicate.equals(predicate)
+          )!;
+        }
 
-      // One query trail can have multiple results, so we need to iterate over them
-      const trailQuads = [...pathDataPointer.quads()];
+        let pathDataPointer = pointer;
+        const trailQuads: Quad[] = [];
+        for (const predicate of path) {
+          trailQuads.push(...pathDataPointer.quads());
+          pathDataPointer = pathDataPointer.distinct().out(predicate);
+        }
 
-      for (const quad of trailQuads) {
-        const nextQuads = [...store.match(quad.object)];
+        // One query trail can have multiple results, so we need to iterate over them
+        // These are leaf quads as we use distinct.
+        const trailLeafQuads: Quad[] = [...pathDataPointer.quads()];
 
-        for (const nextQuad of nextQuads) {
-          if (this.#termCanBeSaved(nextQuad.object)) {
-            this.#store.addQuads([...trailQuads, nextQuad]);
-          } else {
-            const existingChild = pathTrailPointer.children.find((child) =>
-              child.predicate.equals(nextQuad.predicate as NamedNode)
-            );
-            if (!existingChild) {
-              pathTrailPointer.children.push({
-                predicate: nextQuad.predicate as any,
-                children: [],
-                parent: pathTrailPointer,
-              });
+        for (const trailLeafQuad of trailLeafQuads) {
+          const nextQuads = [...store.match(trailLeafQuad.object as any)];
+
+          for (const nextQuad of nextQuads) {
+            // TODO Must check if term can be saved, but also the whole trail does not contain leaf nodes that are blank nodes.
+            if (this.#termCanBeSaved(nextQuad.object)) {
+              this.#store.addQuads([...trailQuads, nextQuad]);
+            } else {
+              const existingChild = pathTrailPointer.children.find((child) =>
+                child.predicate.equals(nextQuad.predicate as NamedNode)
+              );
+              if (!existingChild) {
+                pathTrailPointer.children.push({
+                  predicate: nextQuad.predicate as NamedNode,
+                  children: [],
+                  parent: pathTrailPointer,
+                });
+              }
             }
           }
         }
