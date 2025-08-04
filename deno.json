@@ -8,14 +8,21 @@
     "@comunica/query-sparql": "npm:@comunica/query-sparql@^4.3.0",
     "@comunica/types": "npm:@comunica/types@^4.2.0",
     "@jeswr/pretty-turtle": "npm:@jeswr/pretty-turtle@^1.8.2",
+    "@rdfjs/data-model": "npm:@rdfjs/data-model@^2.1.1",
+    "@rdfjs/environment": "npm:@rdfjs/environment@^1.0.0",
     "@rdfjs/namespace": "npm:@rdfjs/namespace@^2.0.1",
     "@rdfjs/term-set": "npm:@rdfjs/term-set@^2.0.3",
     "@rdfjs/types": "npm:@rdfjs/types@^2.0.1",
     "@types/n3": "npm:@types/n3@^1.26.0",
+    "@types/rdfjs__data-model": "npm:@types/rdfjs__data-model@^2.0.9",
+    "@types/rdfjs__environment": "npm:@types/rdfjs__environment@^1.0.0",
     "@types/rdfjs__namespace": "npm:@types/rdfjs__namespace@^2.0.10",
-    "@types/rdfjs__term-set": "npm:@types/rdfjs__term-set@^2.0.9",
+    "@types/rdfjs__term-set": "npm:@types/rdfjs__term-set@^2.0.3",
     "debug": "npm:debug@^4.4.1",
-    "n3": "npm:n3@^1.26.0"
+    "grapoi": "npm:grapoi@^1.1.3",
+    "n3": "npm:n3@^1.26.0",
+    "rdfjs": "npm:rdfjs@^0.0.1",
+    "types": "npm:types@^0.1.1"
   },
   "fmt": {
     "useTabs": false,

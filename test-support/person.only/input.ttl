@@ -17,9 +17,19 @@
   schema:birthDate "1999-05-29"^^<http://www.w3.org/2001/XMLSchema#date> ;
   schema:deathDate "1981-02-25"^^<http://www.w3.org/2001/XMLSchema#date> ;
   schema:address [
-    schema:streetAddress "S Front Street" ;
+    schema:streetAddress [
+      schema:street "S Front Street" ;
+      schema:number 15 ;
+      schema:extra "Woop" ;
+    ], [
+      schema:street "S Front Street 2" ;
+      schema:number 152 ;
+      schema:extra "Woop2" ;
+    ];
     schema:postalCode "73137" ;
-    schema:addressLocality "Green Bay"
+    schema:addressLocality [
+      schema:name "Green Bay"
+    ] ;
   ] ;
   sh:shapesGraph :PersonShape .
 
@@ -188,9 +198,25 @@
         sh:group <#street-and-housenumber> ;
         sh:path schema:streetAddress ;
         faker:generator faker:location.street ;
-        sh:datatype xsd:string ;
         sh:minCount 1 ;
         sh:maxCount 1 ;
+
+        sh:property [
+            sh:name "Huisnummer"@nl, "House number"@en ;
+            sh:path schema:number ;
+            sh:datatype xsd:integer;
+            sh:minCount 1 ;
+            sh:maxCount 1 ;
+        ] ;
+
+        sh:property [
+            sh:name "Straatnaam"@nl, "Street name"@en ;
+            sh:path schema:street ;
+            sh:datatype xsd:string ;
+            sh:minCount 1 ;
+            sh:maxCount 1 ;
+        ] ;
+
     ] ;
 
     sh:property [

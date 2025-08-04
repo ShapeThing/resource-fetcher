@@ -10,9 +10,13 @@
   schema:gender schema:Female ;
   schema:birthDate "1999-05-29"^^xsd:date ;
   schema:deathDate "1981-02-25"^^xsd:date ;
-  sh:shapesGraph :PersonShape ;
   schema:address [
-    schema:streetAddress "S Front Street" ;
+    schema:streetAddress [
+      schema:street "S Front Street" ;
+      schema:number 15 ;
+      schema:extra "Woop"
+    ] ;
     schema:postalCode "73137" ;
     schema:addressLocality "Green Bay"
-  ] .
+  ] ;
+  sh:shapesGraph :PersonShape .

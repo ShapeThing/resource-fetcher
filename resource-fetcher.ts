@@ -15,6 +15,7 @@ import { Store } from "n3";
 const log = debug("resource-fetcher");
 
 const sh = namespace("http://www.w3.org/ns/shacl#");
+const rdf = namespace("http://www.w3.org/1999/02/22-rdf-syntax-ns#");
 
 /**
  * The trick of this fetcher,
@@ -56,6 +57,7 @@ export const getResource = async ({
     return fetchReferences({
       store: quadsToKeep,
       engine,
+      subject,
       sources,
     });
   }
@@ -91,6 +93,7 @@ export const getResource = async ({
 
   return fetchReferences({
     store: quadsToKeep,
+    subject,
     engine,
     sources,
   });
@@ -99,20 +102,22 @@ export const getResource = async ({
 const fetchReferences = async ({
   store,
   engine,
+  subject,
   sources,
 }: {
   store: Store;
   engine: QueryEngine;
+  subject: Term;
   sources: [QuerySourceUnidentified, ...QuerySourceUnidentified[]];
 }): Promise<Store> => {
-  for (const referencePredicate of referencePredicates) {
-    const referenceObjects = store.match(
-      undefined,
-      referencePredicate as any,
-      undefined
-    );
-    await Promise.all(
-      [...referenceObjects].map(async (referenceObject) => {
+  const referencePromises = referencePredicates.flatMap(
+    (referencePredicate) => {
+      const referenceObjects = store.match(
+        undefined,
+        referencePredicate as any,
+        undefined
+      );
+      return [...referenceObjects].map(async (referenceObject) => {
         if (!store.match(referenceObject.object as any).size) {
           if (referenceObject.object.termType !== "NamedNode") return;
           log("Fetching reference", referenceObject.object.value);
@@ -123,9 +128,15 @@ const fetchReferences = async ({
           });
           store.addAll(resource);
         }
-      })
-    );
-  }
+      });
+    }
+  );
+
+  await Promise.all(referencePromises);
+
+  const rdfTypes = [...store.match(subject as any, rdf("type") as any)].map(
+    (quad) => quad.object
+  );
 
   return store;
 };
