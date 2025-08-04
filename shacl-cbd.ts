@@ -70,7 +70,9 @@ export default class ShaclCbc {
   #sources: [QuerySourceUnidentified, ...QuerySourceUnidentified[]];
   #shapesPointer?: Grapoi;
   #store: Store = new Store();
-  #trails: TrailItem[] = [];
+  #trails: {
+    children: TrailItem[];
+  } = { children: [] };
 
   constructor({ subject, shapes, engine, sources, shapesPointer }: Options) {
     log("Starting SHACL CBD process for subject:", subject.value);
@@ -85,8 +87,10 @@ export default class ShaclCbc {
   async execute() {
     await this.#initialFetch();
     await this.#executeStep();
-    // await this.#executeStep();
-    // console.log(this.#generateQuery());
+    await this.#executeStep();
+    await this.#executeStep();
+    await this.#executeStep();
+    await this.#executeStep();
   }
 
   async #initialFetch() {
@@ -114,7 +118,7 @@ export default class ShaclCbc {
       if (this.#termCanBeSaved(quad.object)) {
         this.#store.addQuad(quad);
       } else {
-        this.#trails.push({
+        this.#trails.children.push({
           predicate: quad.predicate as NamedNode,
           children: [],
         });
@@ -145,7 +149,7 @@ export default class ShaclCbc {
   }
 
   async #executeStep() {
-    if (!this.#trails.length) return;
+    if (!this.#trails.children.length) return;
     const query = this.#generateQuery();
     console.log("Executing query:", query);
     const response = await this.#engine.queryBindings(query, {
@@ -171,17 +175,35 @@ export default class ShaclCbc {
     });
 
     for (const path of allPaths) {
+      let pathTrailPointer: TrailItem = this.#trails as TrailItem;
+      for (const predicate of path) {
+        pathTrailPointer = pathTrailPointer.children.find(
+          (trailItem: TrailItem) => trailItem.predicate.equals(predicate)
+        )!;
+      }
+
       let pathDataPointer = pointer;
       for (const predicate of path)
         pathDataPointer = pathDataPointer.out(predicate);
 
       // One query trail can have multiple results, so we need to iterate over them
-      for (const term of pathDataPointer.terms) {
-        if (this.#termCanBeSaved(term)) {
-          const quads = pathDataPointer.quads();
-          console.log([...quads]);
-        } else {
-          console.log(path);
+      const trailQuads = [...pathDataPointer.quads()];
+
+      for (const quad of trailQuads) {
+        const nextQuads = [...store.match(quad.object)];
+
+        for (const nextQuad of nextQuads) {
+          if (this.#termCanBeSaved(nextQuad.object)) {
+            console.log(nextQuad.object.value);
+
+            this.#store.addQuads([...trailQuads, nextQuad]);
+          } else {
+            // console.log(nextQuad);
+            pathTrailPointer.children.push({
+              predicate: nextQuad.predicate as any,
+              children: [],
+            });
+          }
         }
       }
     }
@@ -223,13 +245,17 @@ export default class ShaclCbc {
       VALUES (?subject ${depths
         .map((depth) => `?depth${depth}_predicate`)
         .join(" ")}) {
-        ( ${allPaths.map(
-          (path) =>
-            `<${this.subject.value}> ${path
-              .slice(0, currentDepth)
-              .map((term) => `<${term.value}>`)
-              .join(" ")}`
-        )} )
+        ${[
+          ...new Set(
+            allPaths.map(
+              (path) =>
+                `( <${this.subject.value}> ${path
+                  .slice(0, currentDepth)
+                  .map((term) => `<${term.value}>`)
+                  .join(" ")} )`
+            )
+          ),
+        ].join("\n        ")}
       }
     ${depths
       .map((depth) => {
@@ -238,7 +264,7 @@ export default class ShaclCbc {
         const object = `?depth${depth}_object`;
         return `  ${subject} ${predicate} ${object} .`;
       })
-      .join("\n")}
+      .join("\n    ")}
       ?depth${currentDepth}_object ?depth${currentDepth + 1}_predicate ?depth${
       currentDepth + 1
     }_object .
@@ -248,7 +274,7 @@ export default class ShaclCbc {
 
   #getMeta() {
     const allPaths: Term[][] = [];
-    for (const trail of this.#trails) {
+    for (const trail of this.#trails.children) {
       const paths = this.#trailToFlatList(trail);
       allPaths.push(...paths);
     }
@@ -270,19 +296,20 @@ export default class ShaclCbc {
   #trailToFlatList(trailItem: TrailItem): Term[][] {
     const result: Term[][] = [];
     const buildPathsFromNode = (
-      node: TrailItem,
+      trailItem: TrailItem,
       currentPath: Term[] = []
     ): void => {
-      const newPath = [node.predicate, ...currentPath];
-      if (node.children.length === 0) {
+      const newPath = [trailItem.predicate, ...currentPath];
+      if (trailItem.children.length === 0) {
         result.push(newPath);
         return;
       }
 
-      for (const child of node.children) buildPathsFromNode(child, newPath);
+      for (const child of trailItem.children)
+        buildPathsFromNode(child, newPath);
     };
 
     buildPathsFromNode(trailItem);
-    return result;
+    return result.map((path) => path.toReversed());
   }
 }
