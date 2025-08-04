@@ -34,6 +34,8 @@ type Options = {
 type TrailItem = {
   predicate: NamedNode;
   children: TrailItem[];
+  processed?: true;
+  parent: TrailItem;
 };
 
 /**
@@ -87,10 +89,24 @@ export default class ShaclCbc {
   async execute() {
     await this.#initialFetch();
     await this.#executeStep();
+    console.log(this.#debugState());
     await this.#executeStep();
-    await this.#executeStep();
-    await this.#executeStep();
-    await this.#executeStep();
+    // await this.#executeStep();
+
+    console.log(this.#debugState());
+  }
+
+  #debugState() {
+    return JSON.stringify(
+      this.#trails,
+      (key: string, value: any) => {
+        if (key === "parent") return undefined;
+        if (key === "predicate") return value.value;
+        if (key === "children" && value.length === 0) return undefined;
+        return value;
+      },
+      2
+    );
   }
 
   async #initialFetch() {
@@ -121,6 +137,7 @@ export default class ShaclCbc {
         this.#trails.children.push({
           predicate: quad.predicate as NamedNode,
           children: [],
+          parent: this.#trails as TrailItem,
         });
       }
     }
@@ -194,15 +211,18 @@ export default class ShaclCbc {
 
         for (const nextQuad of nextQuads) {
           if (this.#termCanBeSaved(nextQuad.object)) {
-            console.log(nextQuad.object.value);
-
             this.#store.addQuads([...trailQuads, nextQuad]);
           } else {
-            // console.log(nextQuad);
-            pathTrailPointer.children.push({
-              predicate: nextQuad.predicate as any,
-              children: [],
-            });
+            const existingChild = pathTrailPointer.children.find((child) =>
+              child.predicate.equals(nextQuad.predicate as NamedNode)
+            );
+            if (!existingChild) {
+              pathTrailPointer.children.push({
+                predicate: nextQuad.predicate as any,
+                children: [],
+                parent: pathTrailPointer,
+              });
+            }
           }
         }
       }
@@ -305,8 +325,10 @@ export default class ShaclCbc {
         return;
       }
 
-      for (const child of trailItem.children)
+      for (const child of trailItem.children) {
+        if (child.processed) continue;
         buildPathsFromNode(child, newPath);
+      }
     };
 
     buildPathsFromNode(trailItem);
