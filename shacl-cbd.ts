@@ -18,6 +18,7 @@ import factory from "@rdfjs/data-model";
 import type Grapoi from "./Grapoi.ts";
 import { Store, Variable } from "n3";
 import process from "node:process";
+import { groupBy } from "lodash-es";
 
 const sh = namespace("http://www.w3.org/ns/shacl#");
 const rdf = namespace("http://www.w3.org/1999/02/22-rdf-syntax-ns#");
@@ -91,7 +92,6 @@ export default class ShaclCbc {
 
   async execute() {
     await this.#initialFetch();
-    await this.#executeStep();
     await this.#executeStep();
     await this.#executeStep();
     await this.#executeStep();
@@ -214,6 +214,11 @@ export default class ShaclCbc {
         (quad) => !this.#termCanBeSaved(quad.object)
       );
 
+      if (!leafNodesContainBlankNodes) {
+        console.log("store", [...store]);
+        this.#store.addAll(store);
+      }
+
       for (const path of childPaths) {
         let pathTrailPointer: TrailItem = this.#trails as TrailItem;
         for (const predicate of path) {
@@ -248,13 +253,6 @@ export default class ShaclCbc {
                   parent: pathTrailPointer,
                 });
               }
-            } else {
-              console.log("wooooops");
-              this.#store.addQuads([
-                ...trailQuads,
-                ...trailLeafQuads,
-                nextQuad,
-              ]);
             }
           }
         }
@@ -292,15 +290,20 @@ export default class ShaclCbc {
   }
 
   #generateQuery(): string {
-    const { allPaths, currentDepth, depths } = this.#getMeta();
-    return `
-    SELECT * WHERE { GRAPH ?g {
+    const { allPaths } = this.#getMeta();
+    const pathsGrouped = groupBy(allPaths, (paths) => paths.length);
+    const unionsClauses = Object.entries(pathsGrouped).map(
+      ([length, paths]) => {
+        const currentDepth = parseInt(length);
+        const depths = Array.from(Array(currentDepth).keys()).map((d) => d + 1);
+
+        return `{
       VALUES (?subject ${depths
         .map((depth) => `?depth${depth}_predicate`)
         .join(" ")}) {
         ${[
           ...new Set(
-            allPaths.map(
+            paths.map(
               (path) =>
                 `( <${this.subject.value}> ${path
                   .slice(0, currentDepth)
@@ -318,9 +321,18 @@ export default class ShaclCbc {
         return `  ${subject} ${predicate} ${object} .`;
       })
       .join("\n    ")}
-      ?depth${currentDepth}_object ?depth${currentDepth + 1}_predicate ?depth${
-      currentDepth + 1
-    }_object .
+      optional {
+        ?depth${currentDepth}_object ?depth${
+          currentDepth + 1
+        }_predicate ?depth${currentDepth + 1}_object .
+      }
+    }`;
+      }
+    );
+
+    return `
+    SELECT * WHERE { GRAPH ?g {
+      ${unionsClauses.join("\n      UNION\n")}
     }}
     `;
   }
@@ -332,7 +344,7 @@ export default class ShaclCbc {
       allPaths.push(...paths);
     }
 
-    const currentDepth = Math.min(...allPaths.map((path) => path.length));
+    const currentDepth = Math.max(...allPaths.map((path) => path.length));
     const depths = Array.from(Array(currentDepth).keys()).map((d) => d + 1);
     const fetchDepths = Array.from(Array(currentDepth + 1).keys()).map(
       (d) => d + 1
