@@ -65,6 +65,9 @@ type TrailItem = {
  *
  * We build progressively longer predicate paths to fetch the entire structure
  * in coordinated queries, avoiding blank node identity conflicts.
+ *
+ * TODO guard against cycles in the RDF graph, as this can lead to infinite loops.
+ * TODO guard against empty blank nodes as they make the algorithm halt.
  */
 export default class ShaclCbc {
   public subject: Quad_Subject;
@@ -91,8 +94,11 @@ export default class ShaclCbc {
     await this.#executeStep();
     await this.#executeStep();
     await this.#executeStep();
-
+    await this.#executeStep();
+    await this.#executeStep();
     console.log(this.#debugState());
+
+    return this.#store;
   }
 
   #debugState() {
@@ -191,8 +197,22 @@ export default class ShaclCbc {
 
     for (const child of this.#trails.children) {
       const childPaths = this.#trailToFlatList(child);
-      // TODO gather all Quads for childPaths so we can ask if there are any leaf nodes that are blank nodes.
-      // TODO guard against cycles in the RDF graph, as this can lead to infinite loops.
+
+      // Gather all values and save them for later re-use.
+      const childLeafValues: Quad[] = [];
+      for (const path of childPaths) {
+        let pathDataPointer = pointer;
+        for (const predicate of path) {
+          pathDataPointer = pathDataPointer.distinct().out(predicate);
+        }
+        childLeafValues.push(...pathDataPointer.quads());
+      }
+
+      // The algorithm works so that for each child of the root SPO, we iteratively fetch triples,
+      // and only when all further triples of one child are valid we add it to the store.
+      const leafNodesContainBlankNodes = childLeafValues.some(
+        (quad) => !this.#termCanBeSaved(quad.object)
+      );
 
       for (const path of childPaths) {
         let pathTrailPointer: TrailItem = this.#trails as TrailItem;
@@ -217,10 +237,7 @@ export default class ShaclCbc {
           const nextQuads = [...store.match(trailLeafQuad.object as any)];
 
           for (const nextQuad of nextQuads) {
-            // TODO Must check if term can be saved, but also the whole trail does not contain leaf nodes that are blank nodes.
-            if (this.#termCanBeSaved(nextQuad.object)) {
-              this.#store.addQuads([...trailQuads, nextQuad]);
-            } else {
+            if (leafNodesContainBlankNodes) {
               const existingChild = pathTrailPointer.children.find((child) =>
                 child.predicate.equals(nextQuad.predicate as NamedNode)
               );
@@ -231,6 +248,13 @@ export default class ShaclCbc {
                   parent: pathTrailPointer,
                 });
               }
+            } else {
+              console.log("wooooops");
+              this.#store.addQuads([
+                ...trailQuads,
+                ...trailLeafQuads,
+                nextQuad,
+              ]);
             }
           }
         }
