@@ -122,12 +122,7 @@ export default class ShaclCbc {
     let shouldContinue = true;
     while (shouldContinue && currentCycle < maxCycles) {
       shouldContinue = await this.#executeStep();
-      log(
-        "Completed cycle:",
-        currentCycle,
-        "with unresolved blank nodes:",
-        shouldContinue
-      );
+      log({ currentCycle, shouldContinue });
       currentCycle++;
     }
 
@@ -160,28 +155,36 @@ export default class ShaclCbc {
     }
   }
 
+  /**
+   *
+   * @returns if another iteration should fetch connected quads.
+   */
   #processQuad(quad: Quad, trailItem: TrailItem, shapesPointer?: Grapoi) {
     const propertyPointer = shapesPointer
       ?.out(sh("property"))
       .hasOut(sh("path"), quad.predicate);
 
-    if (quad.predicate.value === "https://schema.org/address") {
-      console.log(propertyPointer?.term);
-    }
+    const existingChild = trailItem.children.find((child) =>
+      child.predicate.equals(quad.predicate as NamedNode)
+    );
+
     if (quad.object.termType === "Literal") {
       this.#store.addQuad(quad);
+      return false;
     } else if (
-      (propertyPointer?.term || quad.object.termType === "BlankNode") &&
+      (propertyPointer?.terms.length || quad.object.termType === "BlankNode") &&
       !this.#predicateBlackList.some((predicate) =>
         quad.predicate.equals(predicate)
       )
     ) {
+      if (existingChild) return true;
       trailItem.children.push({
         predicate: quad.predicate as NamedNode,
         parent: trailItem,
         shapePointer: this.#propertyPointerToNextNodeShape(propertyPointer),
         children: [],
       });
+      return true;
     }
   }
 
@@ -237,11 +240,9 @@ export default class ShaclCbc {
         return `  ${subject} ${predicate} ${object} .`;
       })
       .join("\n    ")}
-      optional {
         ?depth${currentDepth}_object ?depth${
           currentDepth + 1
         }_predicate ?depth${currentDepth + 1}_object .
-      }
     }`;
       }
     );
@@ -290,6 +291,7 @@ export default class ShaclCbc {
     });
 
     let childrenWithBlankNodes = 0;
+    let childrenThatNeedFetching = false;
 
     for (const child of this.#trails.children) {
       const childPaths = this.#trailToFlatList(child);
@@ -338,24 +340,23 @@ export default class ShaclCbc {
         for (const trailLeafQuad of trailLeafQuads) {
           const nextQuads = [...store.match(trailLeafQuad.object as any)];
 
-          // TODO limit here how far we go, use SHACL here.
           for (const nextQuad of nextQuads) {
-            const existingChild = pathTrailPointer.children.find((child) =>
-              child.predicate.equals(nextQuad.predicate as NamedNode)
-            );
-
-            if (existingChild) continue;
-            this.#processQuad(
+            const furtherFetchingNeeded = this.#processQuad(
               nextQuad,
               pathTrailPointer,
               pathTrailPointer.shapePointer
             );
+
+            if (furtherFetchingNeeded) {
+              childrenThatNeedFetching = true;
+            }
           }
         }
       }
     }
 
-    return !!childrenWithBlankNodes;
+    log({ childrenWithBlankNodes, childrenThatNeedFetching });
+    return !childrenWithBlankNodes && childrenThatNeedFetching;
   }
 
   #getMeta() {

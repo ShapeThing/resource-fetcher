@@ -234,10 +234,7 @@
 
     sh:property [
         sh:name "Plaats"@nl, "Locality"@en ;
-        sh:group <#world> ;
         sh:path schema:addressLocality ;
-        faker:generator faker:location.city ;
-        sh:datatype xsd:string ;
         sh:minCount 1 ;
         sh:maxCount 1 ;
     ] ;

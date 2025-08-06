@@ -3,26 +3,26 @@
 @prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
 @prefix : <https://example.org/> .
 
-:allanDoyle a schema:Person ;
-  schema:givenName "Allan" ;
+:allanDoyle schema:givenName "Allan" ;
   schema:additionalName "Reign" ;
   schema:familyName "Doyle" ;
-  schema:gender schema:Female ;
   schema:birthDate "1999-05-29"^^xsd:date ;
   schema:deathDate "1981-02-25"^^xsd:date ;
-  sh:shapesGraph :PersonShape ;
-  schema:address [
-    schema:postalCode "73137" ;
-    schema:streetAddress [
-      schema:street "S Front Street" ;
-      schema:number 15 ;
-      schema:extra "Woop"
-    ], [
-      schema:street "S Front Street 2" ;
-      schema:number 152 ;
-      schema:extra "Woop2"
-    ] ;
-    schema:addressLocality [
-      schema:name "Green Bay"
-    ]
+  schema:gender schema:Female ;
+  schema:address :allanDoyleAddress .
+
+schema:Female sh:name "Vrouw"@nl, "Female"@en .
+
+:allanDoyleAddress schema:streetAddress [
+    schema:street "S Front Street" ;
+    schema:number 15 ;
+    schema:extra "Woop"
+  ], [
+    schema:street "S Front Street 2" ;
+    schema:number 152 ;
+    schema:extra "Woop2"
+  ] ;
+  schema:postalCode "73137" ;
+  schema:addressLocality [
+    schema:name "Green Bay"
   ] .
