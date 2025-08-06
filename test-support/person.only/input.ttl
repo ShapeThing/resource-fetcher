@@ -16,7 +16,10 @@
   schema:gender schema:Female ;
   schema:birthDate "1999-05-29"^^<http://www.w3.org/2001/XMLSchema#date> ;
   schema:deathDate "1981-02-25"^^<http://www.w3.org/2001/XMLSchema#date> ;
-  schema:address [
+  schema:address :allanDoyleAddress ;
+  sh:shapesGraph :PersonShape .
+
+:allanDoyleAddress
     schema:streetAddress [
       schema:street "S Front Street" ;
       schema:number 15 ;
@@ -30,8 +33,8 @@
     schema:addressLocality [
       schema:name "Green Bay"
     ] ;
-  ] ;
-  sh:shapesGraph :PersonShape .
+    .
+
 
 :otherAllan a schema:Person ;
   schema:givenName "Allen" ;
@@ -61,7 +64,7 @@
   ];
 
   sh:property [
-    sh:path sh:shapesGraph ;
+    sh:path :PersonShape ;
     sh:hasValue <> ;
   ];
 

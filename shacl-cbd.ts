@@ -16,7 +16,7 @@ import namespace from "@rdfjs/namespace";
 import grapoi from "grapoi";
 import factory from "@rdfjs/data-model";
 import type Grapoi from "./Grapoi.ts";
-import { Store, Variable } from "n3";
+import { Store } from "n3";
 import process from "node:process";
 import { groupBy } from "lodash-es";
 
@@ -30,14 +30,17 @@ type Options = {
   sources: [QuerySourceUnidentified, ...QuerySourceUnidentified[]];
   shapes?: Dataset;
   shapesPointer?: Grapoi;
+  predicateBlackList?: Term[];
 };
 
 type TrailItem = {
   predicate: NamedNode;
   children: TrailItem[];
-  processed?: true;
+  shapePointer?: Grapoi;
   parent: TrailItem;
 };
+
+const defaultPredicateBlackList = [sh("shapesGraph")];
 
 /**
  * SHACL-based Concise Bounded Description (CBD) fetcher.
@@ -79,8 +82,16 @@ export default class ShaclCbc {
   #trails: {
     children: TrailItem[];
   } = { children: [] };
+  #predicateBlackList: Term[] = [];
 
-  constructor({ subject, shapes, engine, sources, shapesPointer }: Options) {
+  constructor({
+    subject,
+    shapes,
+    engine,
+    sources,
+    shapesPointer,
+    predicateBlackList = defaultPredicateBlackList,
+  }: Options) {
     log("Starting SHACL CBD process for subject:", subject.value);
     this.#shapesPointer =
       shapesPointer ??
@@ -88,63 +99,56 @@ export default class ShaclCbc {
     this.#sources = sources;
     this.#engine = engine;
     this.subject = subject;
+    this.#predicateBlackList = predicateBlackList;
+  }
+
+  get #comunicaOptions() {
+    return {
+      sources: this.#sources,
+      unionDefaultGraph: true,
+      baseIRI: "http://example.org/",
+      log: process.env["DEBUG"]?.includes("shacl-cbd")
+        ? new LoggerPretty({ level: "debug" })
+        : undefined,
+    };
   }
 
   async execute() {
     await this.#initialFetch();
-    await this.#executeStep();
-    await this.#executeStep();
-    await this.#executeStep();
-    await this.#executeStep();
-    console.log(this.#debugState());
 
+    const maxCycles = 40;
+    let currentCycle = 1;
+
+    let shouldContinue = true;
+    while (shouldContinue && currentCycle < maxCycles) {
+      shouldContinue = await this.#executeStep();
+      log(
+        "Completed cycle:",
+        currentCycle,
+        "with unresolved blank nodes:",
+        shouldContinue
+      );
+      currentCycle++;
+    }
+
+    log(this.#debugState());
     return this.#store;
-  }
-
-  #debugState() {
-    return JSON.stringify(
-      this.#trails,
-      (key: string, value: any) => {
-        if (key === "parent") return undefined;
-        if (key === "predicate") return value.value;
-        if (key === "children" && value.length === 0) return undefined;
-        return value;
-      },
-      2
-    );
   }
 
   async #initialFetch() {
     const response = await this.#engine.queryQuads(
-      `
-      CONSTRUCT { ?s ?p ?o } WHERE {
+      `CONSTRUCT { ?s ?p ?o } WHERE {
         GRAPH ?g {
           VALUES ?s { <${this.subject.value}> }
           ?s ?p ?o
         }
-      }
-    `,
-      {
-        sources: this.#sources,
-        unionDefaultGraph: true,
-        baseIRI: "http://example.org/",
-        log: process.env["DEBUG"]?.includes("resource-fetcher")
-          ? new LoggerPretty({ level: "debug" })
-          : undefined,
-      }
+      }`,
+      this.#comunicaOptions
     );
 
     const quads = await response.toArray();
     for (const quad of quads) {
-      if (this.#termCanBeSaved(quad.object)) {
-        this.#store.addQuad(quad);
-      } else {
-        this.#trails.children.push({
-          predicate: quad.predicate as NamedNode,
-          children: [],
-          parent: this.#trails as TrailItem,
-        });
-      }
+      this.#processQuad(quad, this.#trails as TrailItem, this.#shapesPointer);
     }
 
     // After this first fetch we can set the SHACL shapes pointer
@@ -156,108 +160,97 @@ export default class ShaclCbc {
     }
   }
 
-  #termCanBeSaved(term: Term): boolean {
-    // Check if the quad is a blank node or a named node with a specific pattern
-    if (term.termType === "BlankNode") {
-      return false; // Skip blank nodes
+  #processQuad(quad: Quad, trailItem: TrailItem, shapesPointer?: Grapoi) {
+    const propertyPointer = shapesPointer
+      ?.out(sh("property"))
+      .hasOut(sh("path"), quad.predicate);
+
+    if (quad.predicate.value === "https://schema.org/address") {
+      console.log(propertyPointer?.term);
     }
-    if (
-      term.termType === "NamedNode" &&
-      term.value.includes("/.well-known/genid/")
+    if (quad.object.termType === "Literal") {
+      this.#store.addQuad(quad);
+    } else if (
+      (propertyPointer?.term || quad.object.termType === "BlankNode") &&
+      !this.#predicateBlackList.some((predicate) =>
+        quad.predicate.equals(predicate)
+      )
     ) {
-      return false; // Skip named nodes with specific pattern
+      trailItem.children.push({
+        predicate: quad.predicate as NamedNode,
+        parent: trailItem,
+        shapePointer: this.#propertyPointerToNextNodeShape(propertyPointer),
+        children: [],
+      });
     }
-    return true; // Save all other quads
+  }
+
+  #propertyPointerToNextNodeShape(propertyPointer?: Grapoi) {
+    if (!propertyPointer) return undefined;
+    const originalTerms = propertyPointer.terms;
+    const possibleNodes = propertyPointer.out(sh("node")).terms;
+    const terms = [...originalTerms, ...possibleNodes];
+    return propertyPointer.node(terms);
   }
 
   async #executeStep() {
-    if (!this.#trails.children.length) return;
+    if (!this.#trails.children.length) return false;
     const query = this.#generateQuery();
-    console.log("Executing query:", query);
-    const response = await this.#engine.queryBindings(query, {
-      sources: this.#sources,
-      unionDefaultGraph: true,
-      baseIRI: "http://example.org/",
-      log: process.env["DEBUG"]?.includes("resource-fetcher")
-        ? new LoggerPretty({ level: "debug" })
-        : undefined,
-    });
+    log("Executing query:", query);
+    const response = await this.#engine.queryBindings(
+      query,
+      this.#comunicaOptions
+    );
 
     const bindings = await response.toArray();
     const resultStore = this.#parseBindingsToStore(bindings);
-    this.#processResultStore(resultStore);
+    return this.#processResultStore(resultStore);
   }
 
-  #processResultStore(store: Store) {
-    const pointer = grapoi({
-      factory,
-      dataset: store,
-      term: this.subject,
-    });
+  #generateQuery(): string {
+    const { allPaths } = this.#getMeta();
+    const pathsGrouped = groupBy(allPaths, (paths) => paths.length);
+    const unionsClauses = Object.entries(pathsGrouped).map(
+      ([length, paths]) => {
+        const currentDepth = parseInt(length);
+        const depths = Array.from(Array(currentDepth).keys()).map((d) => d + 1);
+        const materializedPaths = paths.map(
+          (path) =>
+            `( <${this.subject.value}> ${path
+              .slice(0, currentDepth)
+              .map((term) => `<${term.value}>`)
+              .join(" ")} )`
+        );
+        const uniquePaths = [...new Set(materializedPaths)];
 
-    for (const child of this.#trails.children) {
-      const childPaths = this.#trailToFlatList(child);
-
-      // Gather all values and save them for later re-use.
-      const childLeafValues: Quad[] = [];
-      for (const path of childPaths) {
-        let pathDataPointer = pointer;
-        for (const predicate of path) {
-          pathDataPointer = pathDataPointer.distinct().out(predicate);
-        }
-        childLeafValues.push(...pathDataPointer.quads());
+        return `{
+      VALUES (?subject ${depths
+        .map((depth) => `?depth${depth}_predicate`)
+        .join(" ")}) {
+        ${uniquePaths.join("\n        ")}
       }
-
-      // The algorithm works so that for each child of the root SPO, we iteratively fetch triples,
-      // and only when all further triples of one child are valid we add it to the store.
-      const leafNodesContainBlankNodes = childLeafValues.some(
-        (quad) => !this.#termCanBeSaved(quad.object)
-      );
-
-      if (!leafNodesContainBlankNodes) {
-        console.log("store", [...store]);
-        this.#store.addAll(store);
+    ${depths
+      .map((depth) => {
+        const subject = depth === 1 ? `?subject` : `?depth${depth - 1}_object`;
+        const predicate = `?depth${depth}_predicate`;
+        const object = `?depth${depth}_object`;
+        return `  ${subject} ${predicate} ${object} .`;
+      })
+      .join("\n    ")}
+      optional {
+        ?depth${currentDepth}_object ?depth${
+          currentDepth + 1
+        }_predicate ?depth${currentDepth + 1}_object .
       }
-
-      for (const path of childPaths) {
-        let pathTrailPointer: TrailItem = this.#trails as TrailItem;
-        for (const predicate of path) {
-          pathTrailPointer = pathTrailPointer.children.find(
-            (trailItem: TrailItem) => trailItem.predicate.equals(predicate)
-          )!;
-        }
-
-        let pathDataPointer = pointer;
-        const trailQuads: Quad[] = [];
-        for (const predicate of path) {
-          trailQuads.push(...pathDataPointer.quads());
-          pathDataPointer = pathDataPointer.distinct().out(predicate);
-        }
-
-        // One query trail can have multiple results, so we need to iterate over them
-        // These are leaf quads as we use distinct.
-        const trailLeafQuads: Quad[] = [...pathDataPointer.quads()];
-
-        for (const trailLeafQuad of trailLeafQuads) {
-          const nextQuads = [...store.match(trailLeafQuad.object as any)];
-
-          for (const nextQuad of nextQuads) {
-            if (leafNodesContainBlankNodes) {
-              const existingChild = pathTrailPointer.children.find((child) =>
-                child.predicate.equals(nextQuad.predicate as NamedNode)
-              );
-              if (!existingChild) {
-                pathTrailPointer.children.push({
-                  predicate: nextQuad.predicate as NamedNode,
-                  children: [],
-                  parent: pathTrailPointer,
-                });
-              }
-            }
-          }
-        }
+    }`;
       }
-    }
+    );
+
+    return `
+    SELECT * WHERE { GRAPH ?g {
+      ${unionsClauses.join("\n      UNION\n")}
+    }}
+    `;
   }
 
   #parseBindingsToStore(bindings: Bindings[]) {
@@ -289,52 +282,80 @@ export default class ShaclCbc {
     return store;
   }
 
-  #generateQuery(): string {
-    const { allPaths } = this.#getMeta();
-    const pathsGrouped = groupBy(allPaths, (paths) => paths.length);
-    const unionsClauses = Object.entries(pathsGrouped).map(
-      ([length, paths]) => {
-        const currentDepth = parseInt(length);
-        const depths = Array.from(Array(currentDepth).keys()).map((d) => d + 1);
+  #processResultStore(store: Store) {
+    const pointer = grapoi({
+      factory,
+      dataset: store,
+      term: this.subject,
+    });
 
-        return `{
-      VALUES (?subject ${depths
-        .map((depth) => `?depth${depth}_predicate`)
-        .join(" ")}) {
-        ${[
-          ...new Set(
-            paths.map(
-              (path) =>
-                `( <${this.subject.value}> ${path
-                  .slice(0, currentDepth)
-                  .map((term) => `<${term.value}>`)
-                  .join(" ")} )`
-            )
-          ),
-        ].join("\n        ")}
-      }
-    ${depths
-      .map((depth) => {
-        const subject = depth === 1 ? `?subject` : `?depth${depth - 1}_object`;
-        const predicate = `?depth${depth}_predicate`;
-        const object = `?depth${depth}_object`;
-        return `  ${subject} ${predicate} ${object} .`;
-      })
-      .join("\n    ")}
-      optional {
-        ?depth${currentDepth}_object ?depth${
-          currentDepth + 1
-        }_predicate ?depth${currentDepth + 1}_object .
-      }
-    }`;
-      }
-    );
+    let childrenWithBlankNodes = 0;
 
-    return `
-    SELECT * WHERE { GRAPH ?g {
-      ${unionsClauses.join("\n      UNION\n")}
-    }}
-    `;
+    for (const child of this.#trails.children) {
+      const childPaths = this.#trailToFlatList(child);
+
+      // Gather all values and save them for later re-use.
+      const childLeafValues: Quad[] = [];
+      for (const path of childPaths) {
+        let pathDataPointer = pointer;
+        for (const predicate of path) {
+          pathDataPointer = pathDataPointer.distinct().out(predicate);
+        }
+        childLeafValues.push(...pathDataPointer.quads());
+      }
+
+      // The algorithm works so that for each child of the root SPO, we iteratively fetch triples,
+      // and only when all further triples of one child are valid we add it to the store.
+      const leafNodesContainBlankNodes = childLeafValues.some(
+        (quad) => quad.object.termType === "BlankNode"
+      );
+
+      if (leafNodesContainBlankNodes) {
+        childrenWithBlankNodes++;
+      } else {
+        this.#store.addAll(store);
+      }
+
+      for (const path of childPaths) {
+        let pathTrailPointer: TrailItem = this.#trails as TrailItem;
+        for (const predicate of path) {
+          pathTrailPointer = pathTrailPointer.children.find(
+            (trailItem: TrailItem) => trailItem.predicate.equals(predicate)
+          )!;
+        }
+
+        let pathDataPointer = pointer;
+        const trailQuads: Quad[] = [];
+        for (const predicate of path) {
+          trailQuads.push(...pathDataPointer.quads());
+          pathDataPointer = pathDataPointer.distinct().out(predicate);
+        }
+
+        // One query trail can have multiple results, so we need to iterate over them
+        // These are leaf quads as we use distinct.
+        const trailLeafQuads: Quad[] = [...pathDataPointer.quads()];
+
+        for (const trailLeafQuad of trailLeafQuads) {
+          const nextQuads = [...store.match(trailLeafQuad.object as any)];
+
+          // TODO limit here how far we go, use SHACL here.
+          for (const nextQuad of nextQuads) {
+            const existingChild = pathTrailPointer.children.find((child) =>
+              child.predicate.equals(nextQuad.predicate as NamedNode)
+            );
+
+            if (existingChild) continue;
+            this.#processQuad(
+              nextQuad,
+              pathTrailPointer,
+              pathTrailPointer.shapePointer
+            );
+          }
+        }
+      }
+    }
+
+    return !!childrenWithBlankNodes;
   }
 
   #getMeta() {
@@ -371,12 +392,25 @@ export default class ShaclCbc {
       }
 
       for (const child of trailItem.children) {
-        if (child.processed) continue;
         buildPathsFromNode(child, newPath);
       }
     };
 
     buildPathsFromNode(trailItem);
     return result.map((path) => path.toReversed());
+  }
+
+  #debugState() {
+    return JSON.stringify(
+      this.#trails,
+      (key: string, value: any) => {
+        if (key === "parent") return undefined;
+        if (key === "shapePointer") return true;
+        if (key === "predicate") return value.value;
+        if (key === "children" && value.length === 0) return undefined;
+        return value;
+      },
+      2
+    );
   }
 }
