@@ -17,6 +17,7 @@ import grapoi from "grapoi";
 import factory from "@rdfjs/data-model";
 import type Grapoi from "./Grapoi.ts";
 import { Store } from "n3";
+import type { Term as N3Term } from "n3";
 import process from "node:process";
 import { groupBy } from "lodash-es";
 
@@ -142,6 +143,7 @@ export default class ShaclCbc {
     );
 
     const quads = await response.toArray();
+
     for (const quad of quads) {
       this.#processQuad(quad, this.#trails as TrailItem, this.#shapesPointer);
     }
@@ -149,9 +151,12 @@ export default class ShaclCbc {
     // After this first fetch we can set the SHACL shapes pointer
     if (this.#shapesPointer) {
       const types = quads.filter((quad) => quad.predicate.equals(rdf("type")));
-      this.#shapesPointer = this.#shapesPointer
+      const shapesPointer = this.#shapesPointer
         .hasOut(rdf("type"), sh("NodeShape"))
         .hasOut(sh("targetClass"), types);
+      this.#shapesPointer = shapesPointer.terms.length
+        ? shapesPointer
+        : undefined;
     }
   }
 
@@ -168,24 +173,14 @@ export default class ShaclCbc {
       child.predicate.equals(quad.predicate as NamedNode)
     );
 
-    if (quad.object.termType === "Literal") {
-      this.#store.addQuad(quad);
-      return false;
-    } else if (
-      (propertyPointer?.terms.length || quad.object.termType === "BlankNode") &&
-      !this.#predicateBlackList.some((predicate) =>
-        quad.predicate.equals(predicate)
-      )
-    ) {
-      if (existingChild) return true;
-      trailItem.children.push({
-        predicate: quad.predicate as NamedNode,
-        parent: trailItem,
-        shapePointer: this.#propertyPointerToNextNodeShape(propertyPointer),
-        children: [],
-      });
-      return true;
-    }
+    if (existingChild) return;
+
+    trailItem.children.push({
+      predicate: quad.predicate as NamedNode,
+      parent: trailItem,
+      shapePointer: this.#propertyPointerToNextNodeShape(propertyPointer),
+      children: [],
+    });
   }
 
   #propertyPointerToNextNodeShape(propertyPointer?: Grapoi) {
@@ -240,9 +235,11 @@ export default class ShaclCbc {
         return `  ${subject} ${predicate} ${object} .`;
       })
       .join("\n    ")}
+      OPTIONAL {
         ?depth${currentDepth}_object ?depth${
           currentDepth + 1
         }_predicate ?depth${currentDepth + 1}_object .
+      }
     }`;
       }
     );
@@ -291,7 +288,6 @@ export default class ShaclCbc {
     });
 
     let childrenWithBlankNodes = 0;
-    let childrenThatNeedFetching = false;
 
     for (const child of this.#trails.children) {
       const childPaths = this.#trailToFlatList(child);
@@ -314,8 +310,6 @@ export default class ShaclCbc {
 
       if (leafNodesContainBlankNodes) {
         childrenWithBlankNodes++;
-      } else {
-        this.#store.addAll(store);
       }
 
       for (const path of childPaths) {
@@ -338,25 +332,23 @@ export default class ShaclCbc {
         const trailLeafQuads: Quad[] = [...pathDataPointer.quads()];
 
         for (const trailLeafQuad of trailLeafQuads) {
-          const nextQuads = [...store.match(trailLeafQuad.object as any)];
+          const nextQuads = [...store.match(trailLeafQuad.object as N3Term)];
 
           for (const nextQuad of nextQuads) {
-            const furtherFetchingNeeded = this.#processQuad(
+            this.#processQuad(
               nextQuad,
               pathTrailPointer,
               pathTrailPointer.shapePointer
             );
-
-            if (furtherFetchingNeeded) {
-              childrenThatNeedFetching = true;
-            }
           }
         }
       }
     }
 
-    log({ childrenWithBlankNodes, childrenThatNeedFetching });
-    return !childrenWithBlankNodes && childrenThatNeedFetching;
+    log({ childrenWithBlankNodes });
+    const shouldContinue = !!childrenWithBlankNodes;
+    if (!shouldContinue) this.#store.addAll(store);
+    return shouldContinue;
   }
 
   #getMeta() {
@@ -404,11 +396,12 @@ export default class ShaclCbc {
   #debugState() {
     return JSON.stringify(
       this.#trails,
-      (key: string, value: any) => {
+      (key: string, value: unknown) => {
         if (key === "parent") return undefined;
-        if (key === "shapePointer") return true;
-        if (key === "predicate") return value.value;
-        if (key === "children" && value.length === 0) return undefined;
+        if (key === "shapePointer") return !!(value as Grapoi)?.terms.length;
+        if (key === "predicate") return (value as Term).value;
+        if (key === "children" && (value as TrailItem[]).length === 0)
+          return undefined;
         return value;
       },
       2
