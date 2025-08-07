@@ -37,8 +37,9 @@ type Options = {
 type TrailItem = {
   predicate: NamedNode;
   children: TrailItem[];
-  shapePointer?: Grapoi;
+  shapesPointer?: Grapoi;
   parent: TrailItem;
+  processed?: boolean;
 };
 
 const defaultPredicateBlackList = [sh("shapesGraph")];
@@ -145,7 +146,11 @@ export default class ShaclCbc {
     const quads = await response.toArray();
 
     for (const quad of quads) {
-      this.#processQuad(quad, this.#trails as TrailItem, this.#shapesPointer);
+      this.#addQuadToStructure(
+        quad,
+        this.#trails as TrailItem,
+        this.#shapesPointer
+      );
     }
 
     // After this first fetch we can set the SHACL shapes pointer
@@ -164,7 +169,11 @@ export default class ShaclCbc {
    *
    * @returns if another iteration should fetch connected quads.
    */
-  #processQuad(quad: Quad, trailItem: TrailItem, shapesPointer?: Grapoi) {
+  #addQuadToStructure(
+    quad: Quad,
+    trailItem: TrailItem,
+    shapesPointer?: Grapoi
+  ) {
     const propertyPointer = shapesPointer
       ?.out(sh("property"))
       .hasOut(sh("path"), quad.predicate);
@@ -178,7 +187,7 @@ export default class ShaclCbc {
     trailItem.children.push({
       predicate: quad.predicate as NamedNode,
       parent: trailItem,
-      shapePointer: this.#propertyPointerToNextNodeShape(propertyPointer),
+      shapesPointer: this.#propertyPointerToNextNodeShape(propertyPointer),
       children: [],
     });
   }
@@ -235,11 +244,9 @@ export default class ShaclCbc {
         return `  ${subject} ${predicate} ${object} .`;
       })
       .join("\n    ")}
-      OPTIONAL {
         ?depth${currentDepth}_object ?depth${
           currentDepth + 1
         }_predicate ?depth${currentDepth + 1}_object .
-      }
     }`;
       }
     );
@@ -310,6 +317,9 @@ export default class ShaclCbc {
 
       if (leafNodesContainBlankNodes) {
         childrenWithBlankNodes++;
+      } else {
+        this.#store.addAll(store);
+        child.processed = true;
       }
 
       for (const path of childPaths) {
@@ -335,10 +345,10 @@ export default class ShaclCbc {
           const nextQuads = [...store.match(trailLeafQuad.object as N3Term)];
 
           for (const nextQuad of nextQuads) {
-            this.#processQuad(
+            this.#addQuadToStructure(
               nextQuad,
               pathTrailPointer,
-              pathTrailPointer.shapePointer
+              pathTrailPointer.shapesPointer
             );
           }
         }
@@ -398,7 +408,7 @@ export default class ShaclCbc {
       this.#trails,
       (key: string, value: unknown) => {
         if (key === "parent") return undefined;
-        if (key === "shapePointer") return !!(value as Grapoi)?.terms.length;
+        if (key === "shapesPointer") return !!(value as Grapoi)?.terms.length;
         if (key === "predicate") return (value as Term).value;
         if (key === "children" && (value as TrailItem[]).length === 0)
           return undefined;
