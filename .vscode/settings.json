@@ -3,5 +3,9 @@
   "deno.lint": true,
   "editor.formatOnSave": true,
   "editor.defaultFormatter": "denoland.vscode-deno",
-  "cSpell.words": ["grapoi", "Shacl"]
+  "cSpell.words": ["grapoi", "Shacl"],
+  "[markdown]": {
+    "editor.formatOnSave": false,
+    "editor.wordWrap": "off"
+  }
 }
