@@ -35,8 +35,7 @@ const fetcher = new ShaclCbd({
   predicateBlackList: [namedNode('http://example.org/skipThis')], // Optional
 })
 
-await fetcher.execute()
-// Access the complete data via fetcher.store
+const store = await fetcher.execute()
 ```
 
 ## License
