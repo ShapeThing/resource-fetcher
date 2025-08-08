@@ -36,7 +36,7 @@ type Options = {
 };
 
 type TrailItem = {
-  predicate: NamedNode;
+  predicate?: NamedNode;
   children: TrailItem[];
   depth: number;
   shapesPointer?: Grapoi;
@@ -76,8 +76,6 @@ const defaultPredicateBlackList = [sh("shapesGraph")];
  * We build progressively longer predicate paths to fetch the entire structure
  * in coordinated queries, avoiding blank node identity conflicts.
  *
- * TODO guard against cycles in the RDF graph, as this can lead to infinite loops.
- * TODO guard against empty blank nodes as they make the algorithm halt.
  */
 export default class ShaclCbc {
   public subject: Quad_Subject;
@@ -90,7 +88,6 @@ export default class ShaclCbc {
   #trails: TrailItem = {
     children: [],
     depth: 0,
-    predicate: factory.namedNode("urn:root"),
   };
 
   constructor({
@@ -155,7 +152,7 @@ export default class ShaclCbc {
   /**
    * The heart beat of the algorithm. Each execution will tell if there should be another round or not.
    */
-  async execute() {
+  async execute(): Promise<Store> {
     await this.#initialFetch();
 
     let currentCycle = 1;
@@ -223,7 +220,7 @@ export default class ShaclCbc {
       .hasOut(sh("path"), quad.predicate);
 
     const existingChild = trailItem.children.find((child) =>
-      child.predicate.equals(quad.predicate as NamedNode)
+      child.predicate?.equals(quad.predicate as NamedNode)
     );
 
     if (existingChild) return;
@@ -299,7 +296,6 @@ export default class ShaclCbc {
         return `  ${subject} ${predicate} ${object} .`;
       })
       .join("\n    ")}
-      # TODO without this optional the test levels fails. I do not understand yet why.
       OPTIONAL {
         ?depth${currentDepth}_object ?depth${
           currentDepth + 1
@@ -373,7 +369,7 @@ export default class ShaclCbc {
         let pathTrailPointer: TrailItem = this.#trails as TrailItem;
         for (const predicate of path) {
           pathTrailPointer = pathTrailPointer.children.find(
-            (trailItem: TrailItem) => trailItem.predicate.equals(predicate)
+            (trailItem: TrailItem) => trailItem.predicate?.equals(predicate)
           )!;
         }
 
@@ -448,7 +444,9 @@ export default class ShaclCbc {
       trailItem: TrailItem,
       currentPath: Term[] = []
     ): void => {
-      const newPath = [trailItem.predicate, ...currentPath];
+      const newPath = [trailItem.predicate, ...currentPath].filter(
+        Boolean
+      ) as Term[];
       if (trailItem.children.length === 0) {
         result.push(newPath);
         return;

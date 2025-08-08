@@ -4,7 +4,8 @@ ex:thing
     ex:foo (
         [
             ex:bar "baz" ;
-            ex:qux "quux"
+            ex:qux "quux" ;
+            ex:empty [] 
         ]
         [
     ex:bar "baz1" ;
