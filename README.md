@@ -1,35 +1,21 @@
-# RDF Resource Fetcher
+# SHACL-based Concise Bounded Description (CBD) Fetcher
 
-A RDF resource fetcher that retrieves all triples "belonging" to a specific IRI from RDF data sources, handling the complexities of blank nodes and nested data structures.
+A SHACL-guided RDF resource fetcher that retrieves all triples belonging to a specific IRI from RDF data sources, handling the complexities of blank nodes and nested data structures.
 
-## What it does
+## The Problem
 
-**Main Goal**: Given a subject IRI, fetch ALL the data connected to it, even when that data is spread across multiple "hops" in the RDF graph.
+**Blank nodes from different SPARQL queries get different identifiers**, making it impossible to merge results that reference the same logical blank node. When working with RDF data, information about
+a single resource is often scattered across multiple triples and may involve blank nodes that can't be reliably matched across separate queries.
 
-## The Problem it Solves
+## Solution
 
-When working with RDF data, information about a single resource is often scattered across multiple triples and may involve blank nodes (anonymous objects). Standard SPARQL queries might only fetch
-direct properties, missing important nested information or failing to properly handle blank nodes that can't be reliably matched across separate queries.
+When we encounter a blank node object, we expand the query pattern to fetch the blank node's content in the same query, preserving blank node identity.
 
-## How it Works
+## Features
 
-### The Process
-
-1. **Start with a subject** - like `<http://example.org/person/john>`
-2. **Query for direct properties** - find triples like:
-   - `john hasName "John Smith"`
-   - `john hasAddress _:blank123`
-3. **Handle blank nodes specially** - When a property points to a blank node, it needs special treatment because blank nodes from different queries can't be reliably matched
-4. **Recursively fetch deeper data** - For each blank node found, make a new query that follows the complete path from the original subject
-5. **Combine everything** - Merge all the fetched data into one complete dataset
-
-### Key Trick: Blank Node Handling
-
-The tricky part is **blank nodes** - these are anonymous objects in RDF that don't have permanent identifiers. This fetcher solves the blank node problem by:
-
-- **Detecting blank leaf nodes**: Identifying when a query result contains blank nodes that aren't referenced elsewhere
-- **Path-based querying**: Making follow-up queries that trace the complete path from the original subject through all predicates
-- **Recursive resolution**: Building up a complete picture by recursively fetching nested data
+- **SHACL Shape Integration**: Use SHACL shapes to guide which properties to fetch
+- **Predicate Blacklisting**: Skip certain predicates during traversal
+- **Maximum Depth Control**: Limit traversal depth
 
 ## Example
 
@@ -39,7 +25,7 @@ Instead of getting incomplete data like:
 <person:john> <hasAddress> _:blank1 .
 ```
 
-The fetcher will retrieve the complete address information:
+The fetcher retrieves the complete structure:
 
 ```turtle
 <person:john> <hasAddress> _:addr1 .
@@ -51,21 +37,21 @@ _:addr1 <hasZip> "12345" .
 ## Usage
 
 ```typescript
-import { getResource } from '@shapething/resource-fetcher'
+import ShaclCbd from '@shapething/fetcher/shacl-cbd'
 import { QueryEngine } from '@comunica/query-sparql'
 import { namedNode } from '@rdfjs/data-model'
 
-const engine = new QueryEngine()
-const sources = ['https://example.org/data.ttl']
-const subject = namedNode('http://example.org/person/john')
-
-const completeResource = await getResource({
-  subject,
-  engine,
-  sources,
+const fetcher = new ShaclCbd({
+  subject: namedNode('http://example.org/person/john'),
+  engine: new QueryEngine(),
+  sources: ['https://example.org/data.ttl'],
+  shapes: myShapesDataset, // Optional
+  maxDepth: 10, // Optional (default: 20)
+  predicateBlackList: [namedNode('http://example.org/skipThis')], // Optional
 })
 
-// completeResource now contains all triples belonging to the subject
+await fetcher.execute()
+// Access the complete data via fetcher.store
 ```
 
 ## License
