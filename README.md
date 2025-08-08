@@ -22,11 +22,11 @@ across separate queries.
 ## Usage
 
 ```typescript
-import ShaclCbd from '@shapething/fetcher/shacl-cbd'
+import ResourceFetcher from '@shapething/resource-fetcher'
 import { QueryEngine } from '@comunica/query-sparql'
 import { namedNode } from '@rdfjs/data-model'
 
-const fetcher = new ShaclCbd({
+const fetcher = new ResourceFetcher({
   subject: namedNode('http://example.org/person/john'),
   engine: new QueryEngine(),
   sources: ['https://example.org/data.ttl'],
