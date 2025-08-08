@@ -45,6 +45,10 @@ for (const testFolder of filtered2) {
       prefixes: (parser as any)._prefixes,
     });
 
+    if (serializedResult.trim() !== expectedOutput.trim()) {
+      console.error(serializedResult.trim());
+    }
+
     expect(serializedResult.trim()).toEqual(expectedOutput.trim());
   });
 }

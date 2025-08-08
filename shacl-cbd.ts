@@ -29,6 +29,7 @@ type Options = {
   subject: Quad_Subject;
   engine: QueryEngine;
   sources: [QuerySourceUnidentified, ...QuerySourceUnidentified[]];
+  maxDepth?: number;
   shapes?: Dataset;
   shapesPointer?: Grapoi;
   predicateBlackList?: Term[];
@@ -37,10 +38,13 @@ type Options = {
 type TrailItem = {
   predicate: NamedNode;
   children: TrailItem[];
+  depth: number;
   shapesPointer?: Grapoi;
-  parent: TrailItem;
+  parent?: TrailItem;
   processed?: boolean;
 };
+
+type EngineSources = [QuerySourceUnidentified, ...QuerySourceUnidentified[]];
 
 const defaultPredicateBlackList = [sh("shapesGraph")];
 
@@ -78,13 +82,16 @@ const defaultPredicateBlackList = [sh("shapesGraph")];
 export default class ShaclCbc {
   public subject: Quad_Subject;
   #engine: QueryEngine;
-  #sources: [QuerySourceUnidentified, ...QuerySourceUnidentified[]];
+  #sources: EngineSources;
   #shapesPointer?: Grapoi;
   #store: Store = new Store();
-  #trails: {
-    children: TrailItem[];
-  } = { children: [] };
   #predicateBlackList: Term[] = [];
+  #maxDepth: number;
+  #trails: TrailItem = {
+    children: [],
+    depth: 0,
+    predicate: factory.namedNode("urn:root"),
+  };
 
   constructor({
     subject,
@@ -92,7 +99,8 @@ export default class ShaclCbc {
     engine,
     sources,
     shapesPointer,
-    predicateBlackList = defaultPredicateBlackList,
+    maxDepth,
+    predicateBlackList,
   }: Options) {
     log("Starting SHACL CBD process for subject:", subject.value);
     this.#shapesPointer =
@@ -101,7 +109,8 @@ export default class ShaclCbc {
     this.#sources = sources;
     this.#engine = engine;
     this.subject = subject;
-    this.#predicateBlackList = predicateBlackList;
+    this.#predicateBlackList = predicateBlackList ?? defaultPredicateBlackList;
+    this.#maxDepth = maxDepth ?? 20;
   }
 
   get #comunicaOptions() {
@@ -115,14 +124,44 @@ export default class ShaclCbc {
     };
   }
 
+  /**
+   * A quad comes in and if we return true, it will be stored and its trail will be walked.
+   * This is the place where we check in the SHACL shape if the property should be allowed.
+   */
+  #isAllowed(quad: Quad, trailItem: TrailItem) {
+    const isBlacklisted = this.#predicateBlackList.some((predicate) =>
+      quad.predicate.equals(predicate)
+    );
+    if (isBlacklisted) return;
+    if (trailItem.depth < this.#maxDepth) return true;
+
+    if (trailItem.depth === 0 && quad.object.termType === "Literal") {
+      return true;
+    }
+
+    if (quad.object.termType === "BlankNode") {
+      return true;
+    }
+
+    if (
+      trailItem.shapesPointer
+        ?.out(sh("property"))
+        .hasOut(sh("path"), quad.predicate).terms.length
+    ) {
+      return true;
+    }
+  }
+
+  /**
+   * The heart beat of the algorithm. Each execution will tell if there should be another round or not.
+   */
   async execute() {
     await this.#initialFetch();
 
-    const maxCycles = 40;
     let currentCycle = 1;
 
     let shouldContinue = true;
-    while (shouldContinue && currentCycle < maxCycles) {
+    while (shouldContinue && currentCycle < this.#maxDepth) {
       shouldContinue = await this.#executeStep();
       log({ currentCycle, shouldContinue });
       currentCycle++;
@@ -132,6 +171,10 @@ export default class ShaclCbc {
     return this.#store;
   }
 
+  /**
+   * The first fetch is similar to an ?s ?p ?o query.
+   * After the first fetch we can set the SHACL shapes pointer as we might have rdf:type triples.
+   */
   async #initialFetch() {
     const response = await this.#engine.queryQuads(
       `CONSTRUCT { ?s ?p ?o } WHERE {
@@ -145,36 +188,37 @@ export default class ShaclCbc {
 
     const quads = await response.toArray();
 
-    for (const quad of quads) {
-      this.#addQuadToStructure(
-        quad,
-        this.#trails as TrailItem,
-        this.#shapesPointer
-      );
-    }
-
     // After this first fetch we can set the SHACL shapes pointer
     if (this.#shapesPointer) {
-      const types = quads.filter((quad) => quad.predicate.equals(rdf("type")));
+      const types = quads
+        .filter((quad) => quad.predicate.equals(rdf("type")))
+        .map((quad) => quad.object);
+
       const shapesPointer = this.#shapesPointer
         .hasOut(rdf("type"), sh("NodeShape"))
         .hasOut(sh("targetClass"), types);
       this.#shapesPointer = shapesPointer.terms.length
         ? shapesPointer
         : undefined;
+
+      this.#trails.shapesPointer = shapesPointer;
     }
+
+    for (const quad of quads) {
+      this.#addQuadToStructure(quad, this.#trails);
+    }
+
+    const resultStore = new Store(quads);
+    this.#processResultStore(resultStore);
   }
 
   /**
-   *
-   * @returns if another iteration should fetch connected quads.
+   * Adds a quad to the structure of trails if it is allowed.
    */
-  #addQuadToStructure(
-    quad: Quad,
-    trailItem: TrailItem,
-    shapesPointer?: Grapoi
-  ) {
-    const propertyPointer = shapesPointer
+  #addQuadToStructure(quad: Quad, trailItem: TrailItem) {
+    if (!this.#isAllowed(quad, trailItem)) return;
+
+    const propertyPointer = trailItem.shapesPointer
       ?.out(sh("property"))
       .hasOut(sh("path"), quad.predicate);
 
@@ -187,11 +231,15 @@ export default class ShaclCbc {
     trailItem.children.push({
       predicate: quad.predicate as NamedNode,
       parent: trailItem,
+      depth: trailItem.depth + 1,
       shapesPointer: this.#propertyPointerToNextNodeShape(propertyPointer),
       children: [],
     });
   }
 
+  /**
+   * Given a SHACL shape pointer, sets the pointer to the next level.
+   */
   #propertyPointerToNextNodeShape(propertyPointer?: Grapoi) {
     if (!propertyPointer) return undefined;
     const originalTerms = propertyPointer.terms;
@@ -200,6 +248,10 @@ export default class ShaclCbc {
     return propertyPointer.node(terms);
   }
 
+  /**
+   * Executes a single step of the algorithm.
+   * It generates a query based on the current trails and fetches the results.
+   */
   async #executeStep() {
     if (!this.#trails.children.length) return false;
     const query = this.#generateQuery();
@@ -214,6 +266,9 @@ export default class ShaclCbc {
     return this.#processResultStore(resultStore);
   }
 
+  /**
+   * Generates a SPARQL query based on the current trails.
+   */
   #generateQuery(): string {
     const { allPaths } = this.#getMeta();
     const pathsGrouped = groupBy(allPaths, (paths) => paths.length);
@@ -244,9 +299,12 @@ export default class ShaclCbc {
         return `  ${subject} ${predicate} ${object} .`;
       })
       .join("\n    ")}
+      # TODO without this optional the test levels fails. I do not understand yet why.
+      OPTIONAL {
         ?depth${currentDepth}_object ?depth${
           currentDepth + 1
         }_predicate ?depth${currentDepth + 1}_object .
+      }
     }`;
       }
     );
@@ -258,6 +316,10 @@ export default class ShaclCbc {
     `;
   }
 
+  /**
+   * We use a select SPARQL query as it gives us a way of fetching triples
+   * while also finding out which of these triples are leaf quads.
+   */
   #parseBindingsToStore(bindings: Bindings[]) {
     const { fetchDepths } = this.#getMeta();
     const store = new Store();
@@ -287,6 +349,13 @@ export default class ShaclCbc {
     return store;
   }
 
+  /**
+   * After the query is executed we process the result store.
+   * This will walk the trails and add new quads to the structure.
+   * If a trail has been processed, it will not be processed again.
+   * If a trail needs another cycle, it will be marked as such.
+   * If a trail has no more children, it will be marked as processed.
+   */
   #processResultStore(store: Store) {
     const pointer = grapoi({
       factory,
@@ -294,33 +363,11 @@ export default class ShaclCbc {
       term: this.subject,
     });
 
-    let childrenWithBlankNodes = 0;
+    let algorithmNeedsAnotherCycle = false;
 
     for (const child of this.#trails.children) {
+      let branchNeedsAnotherCycle = false;
       const childPaths = this.#trailToFlatList(child);
-
-      // Gather all values and save them for later re-use.
-      const childLeafValues: Quad[] = [];
-      for (const path of childPaths) {
-        let pathDataPointer = pointer;
-        for (const predicate of path) {
-          pathDataPointer = pathDataPointer.distinct().out(predicate);
-        }
-        childLeafValues.push(...pathDataPointer.quads());
-      }
-
-      // The algorithm works so that for each child of the root SPO, we iteratively fetch triples,
-      // and only when all further triples of one child are valid we add it to the store.
-      const leafNodesContainBlankNodes = childLeafValues.some(
-        (quad) => quad.object.termType === "BlankNode"
-      );
-
-      if (leafNodesContainBlankNodes) {
-        childrenWithBlankNodes++;
-      } else {
-        this.#store.addAll(store);
-        child.processed = true;
-      }
 
       for (const path of childPaths) {
         let pathTrailPointer: TrailItem = this.#trails as TrailItem;
@@ -345,22 +392,31 @@ export default class ShaclCbc {
           const nextQuads = [...store.match(trailLeafQuad.object as N3Term)];
 
           for (const nextQuad of nextQuads) {
-            this.#addQuadToStructure(
-              nextQuad,
-              pathTrailPointer,
-              pathTrailPointer.shapesPointer
-            );
+            if (this.#isAllowed(nextQuad, pathTrailPointer)) {
+              branchNeedsAnotherCycle = true;
+            }
+
+            this.#addQuadToStructure(nextQuad, pathTrailPointer);
           }
         }
       }
+
+      if (branchNeedsAnotherCycle) {
+        algorithmNeedsAnotherCycle = true;
+      } else {
+        this.#store.addAll(store);
+        child.processed = true;
+      }
     }
 
-    log({ childrenWithBlankNodes });
-    const shouldContinue = !!childrenWithBlankNodes;
-    if (!shouldContinue) this.#store.addAll(store);
-    return shouldContinue;
+    log({ algorithmNeedsAnotherCycle });
+    return algorithmNeedsAnotherCycle;
   }
 
+  /**
+   * Returns metadata about the current state of the trails.
+   * This includes all paths, the current depth, and the available fetch depths.
+   */
   #getMeta() {
     const allPaths: Term[][] = [];
     for (const trail of this.#trails.children) {
@@ -382,6 +438,10 @@ export default class ShaclCbc {
     };
   }
 
+  /**
+   * Converts a tree of TrailItems into a flat list of paths.
+   * Each path is represented as an array of Terms (predicates).
+   */
   #trailToFlatList(trailItem: TrailItem): Term[][] {
     const result: Term[][] = [];
     const buildPathsFromNode = (
@@ -403,6 +463,9 @@ export default class ShaclCbc {
     return result.map((path) => path.toReversed());
   }
 
+  /**
+   * Pretty prints the state so you can debug.
+   */
   #debugState() {
     return JSON.stringify(
       this.#trails,

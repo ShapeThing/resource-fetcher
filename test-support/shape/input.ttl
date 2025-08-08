@@ -54,16 +54,16 @@
     sh:path schema:gender ;
   ];
   
-  # sh:property [
-  #   sh:name "Adres"@nl, "Address"@en ;
-  #   sh:order 4 ;
-  #   sh:path schema:address ;
-  #   sh:maxCount 1 ;
-  #   sh:minCount 1;
-  #   sh:group <#general> ;
-  #   sh:node <#addressShape> ;
-  #   sh:nodeKind sh:BlankNode ;
-  # ];
+  sh:property [
+    sh:name "Adres"@nl, "Address"@en ;
+    sh:order 4 ;
+    sh:path schema:address ;
+    sh:maxCount 1 ;
+    sh:minCount 1;
+    sh:group <#general> ;
+    sh:node <#addressShape> ;
+    sh:nodeKind sh:BlankNode ;
+  ];
 
 .
 

@@ -17,7 +17,8 @@
   schema:birthDate "1999-05-29"^^<http://www.w3.org/2001/XMLSchema#date> ;
   schema:deathDate "1981-02-25"^^<http://www.w3.org/2001/XMLSchema#date> ;
   schema:address :allanDoyleAddress ;
-  sh:shapesGraph :PersonShape .
+  sh:shapesGraph :PersonShape ;
+  .
 
 :allanDoyleAddress
     schema:streetAddress [

@@ -18,10 +18,10 @@
   sh:property [
     sh:name "Geslacht"@nl, "Gender"@en ;
     sh:group <https://example.org/#general> ;
+    sh:in (schema:Male schema:Female) ;
     sh:maxCount 1 ;
     sh:minCount 1 ;
-    sh:path schema:gender ;
-    sh:in (schema:Male schema:Female)
+    sh:path schema:gender
   ], [
     sh:name "Adres"@nl, "Address"@en ;
     sh:group <https://example.org/#general> ;
@@ -74,6 +74,10 @@
     faker:generator faker:location.country ;
     sh:datatype xsd:string
   ] .
+
+schema:Male sh:name "Man"@nl, "Man"@en .
+
+schema:Female sh:name "Vrouw"@nl, "Female"@en .
 
 <https://example.org/#street-and-housenumber> a sh:PropertyGroup, stsr:HorizontalPropertyGroup ;
   sh:order 2 .
