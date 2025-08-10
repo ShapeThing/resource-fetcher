@@ -38,6 +38,10 @@ const fetcher = new ResourceFetcher({
 const store = await fetcher.execute()
 ```
 
+## Caveats
+
+- The algorithm over fetches one triple level.
+
 ## License
 
 GPL-3.0-only

@@ -1,86 +1,86 @@
-@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
-@prefix sh: <http://www.w3.org/ns/shacl#> .
-@prefix schema: <https://schema.org/> .
-@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
-@prefix dash: <http://datashapes.org/dash#> .
-@prefix stsr: <http://ontology.shapething.com/shacl-renderer#> .
-@prefix faker: <https://fakerjs.dev/> .
 @prefix : <https://example.org/> .
+@prefix dash: <http://datashapes.org/dash#> .
+@prefix faker: <https://fakerjs.dev/> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix schema: <https://schema.org/> .
+@prefix sh: <http://www.w3.org/ns/shacl#> .
+@prefix stsr: <http://ontology.shapething.com/shacl-renderer#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
 
-:PersonShape a stsr:Shape, sh:NodeShape, stsr:Faker ;
-  sh:targetClass schema:Person ;
+<https://example.org/#addressShape> a stsr:SubShape, sh:NodeShape ;
   sh:closed true ;
-  sh:name "Persoon"@nl, "Person"@en ;
-  dash:stem :Mensen ;
-  stsr:icon "stash:person"^^<https://iconify.design> ;
-  stsr:filenameSuggestion (schema:givenName " " schema:familyName) ;
-  sh:ignoredProperties (stsr:label) ;
+  sh:ignoredProperties (rdf:type) ;
+  sh:name "Address"@en, "Adres"@nl ;
   sh:property [
-    sh:name "Geslacht"@nl, "Gender"@en ;
+    sh:datatype xsd:string ;
+    sh:group <https://example.org/#street-and-housenumber> ;
+    sh:maxCount 1 ;
+    sh:minCount 1 ;
+    sh:name "Straatnaam"@nl, "Street"@en ;
+    sh:path schema:streetAddress ;
+    faker:generator faker:location.street
+  ], [
+    sh:datatype xsd:string ;
+    sh:group <https://example.org/#street-and-housenumber> ;
+    sh:maxCount 1 ;
+    sh:minCount 1 ;
+    sh:name "Postcode"@nl, "Zipcode"@en ;
+    sh:path schema:postalCode ;
+    faker:generator faker:location.zipCode
+  ], [
+    sh:datatype xsd:string ;
+    sh:group <https://example.org/#world> ;
+    sh:maxCount 1 ;
+    sh:minCount 1 ;
+    sh:name "Locality"@en, "Plaats"@nl ;
+    sh:path schema:addressLocality ;
+    faker:generator faker:location.city
+  ], [
+    sh:datatype xsd:string ;
+    sh:group <https://example.org/#world> ;
+    sh:maxCount 1 ;
+    sh:name "Country"@en, "Land"@nl ;
+    sh:path schema:addressCountry ;
+    faker:generator faker:location.country
+  ] ;
+  sh:targetClass schema:PostalAddress .
+
+<https://example.org/#general> a stsr:CollapsiblePropertyGroup, sh:PropertyGroup ;
+  sh:name "Algemeen"@nl, "General"@en ;
+  sh:order 1 .
+
+<https://example.org/#street-and-housenumber> a stsr:HorizontalPropertyGroup, sh:PropertyGroup ;
+  sh:order 2 .
+
+<https://example.org/#world> a stsr:HorizontalPropertyGroup, sh:PropertyGroup ;
+  sh:order 3 .
+
+:PersonShape a stsr:Faker, stsr:Shape, sh:NodeShape ;
+  dash:stem :Mensen ;
+  stsr:filenameSuggestion (schema:givenName " " schema:familyName) ;
+  stsr:icon "stash:person"^^<https://iconify.design> ;
+  sh:closed true ;
+  sh:ignoredProperties (stsr:label) ;
+  sh:name "Person"@en, "Persoon"@nl ;
+  sh:property [
     sh:group <https://example.org/#general> ;
     sh:in (schema:Male schema:Female) ;
     sh:maxCount 1 ;
     sh:minCount 1 ;
+    sh:name "Gender"@en, "Geslacht"@nl ;
     sh:path schema:gender
   ], [
-    sh:name "Adres"@nl, "Address"@en ;
     sh:group <https://example.org/#general> ;
     sh:maxCount 1 ;
     sh:minCount 1 ;
-    sh:path schema:address ;
-    sh:order 4 ;
+    sh:name "Address"@en, "Adres"@nl ;
     sh:node <https://example.org/#addressShape> ;
-    sh:nodeKind sh:BlankNode
-  ] .
+    sh:nodeKind sh:BlankNode ;
+    sh:order 4 ;
+    sh:path schema:address
+  ] ;
+  sh:targetClass schema:Person .
 
-<https://example.org/#general> a sh:PropertyGroup, stsr:CollapsiblePropertyGroup ;
-  sh:name "Algemeen"@nl, "General"@en ;
-  sh:order 1 .
+schema:Female sh:name "Female"@en, "Vrouw"@nl .
 
-<https://example.org/#addressShape> a sh:NodeShape, stsr:SubShape ;
-  sh:targetClass schema:PostalAddress ;
-  sh:closed true ;
-  sh:name "Adres"@nl, "Address"@en ;
-  sh:ignoredProperties (rdf:type) ;
-  sh:property [
-    sh:name "Straatnaam"@nl, "Street"@en ;
-    sh:group <https://example.org/#street-and-housenumber> ;
-    sh:maxCount 1 ;
-    sh:minCount 1 ;
-    sh:path schema:streetAddress ;
-    faker:generator faker:location.street ;
-    sh:datatype xsd:string
-  ], [
-    sh:name "Postcode"@nl, "Zipcode"@en ;
-    sh:group <https://example.org/#street-and-housenumber> ;
-    sh:maxCount 1 ;
-    sh:minCount 1 ;
-    sh:path schema:postalCode ;
-    faker:generator faker:location.zipCode ;
-    sh:datatype xsd:string
-  ], [
-    sh:name "Plaats"@nl, "Locality"@en ;
-    sh:group <https://example.org/#world> ;
-    sh:maxCount 1 ;
-    sh:minCount 1 ;
-    sh:path schema:addressLocality ;
-    faker:generator faker:location.city ;
-    sh:datatype xsd:string
-  ], [
-    sh:name "Land"@nl, "Country"@en ;
-    sh:group <https://example.org/#world> ;
-    sh:maxCount 1 ;
-    sh:path schema:addressCountry ;
-    faker:generator faker:location.country ;
-    sh:datatype xsd:string
-  ] .
-
-schema:Male sh:name "Man"@nl, "Man"@en .
-
-schema:Female sh:name "Vrouw"@nl, "Female"@en .
-
-<https://example.org/#street-and-housenumber> a sh:PropertyGroup, stsr:HorizontalPropertyGroup ;
-  sh:order 2 .
-
-<https://example.org/#world> a sh:PropertyGroup, stsr:HorizontalPropertyGroup ;
-  sh:order 3 .
+schema:Male sh:name "Man"@en, "Man"@nl .

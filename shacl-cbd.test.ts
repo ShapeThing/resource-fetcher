@@ -39,11 +39,11 @@ for (const testFolder of filtered2) {
       sources: [store],
     });
 
-    cbd.get();
     const resultStore = await cbd.get();
 
     const serializedResult = await write(resultStore, {
       prefixes: (parser as any)._prefixes,
+      ordered: true,
     });
 
     if (serializedResult.trim() !== expectedOutput.trim()) {

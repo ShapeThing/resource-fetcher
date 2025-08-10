@@ -114,7 +114,7 @@ export default class ShaclCbc {
     maxDepth,
     predicateBlackList,
   }: Options) {
-    this.#log = debug(`shacl-cbd:${subject.value}`);
+    this.#log = debug(`shacl-cbd`);
     this.#log("Starting SHACL CBD process for subject:", subject.value);
     this.#shapesPointer = shapesPointer;
     this.#shapes = shapes;
@@ -429,35 +429,27 @@ export default class ShaclCbc {
             ?.out(sh("property"))
             .hasOut(sh("path"), trailLeafQuad.predicate);
 
-          const predicateIsInShape = propertyShapePointer?.terms.length;
-
           if (trailLeafQuad.object.termType === "BlankNode") {
             branchNeedsAnotherCycle = true;
           }
 
-          if (
-            predicateIsInShape &&
-            trailLeafQuad.object.termType === "NamedNode"
-          ) {
-            const nestedShaclCbd = new ShaclCbc({
-              subject: trailLeafQuad.object,
-              engine: this.#engine,
-              sources: this.#sources,
-              shapesPointer:
-                this.#propertyPointerToNextNodeShape(propertyShapePointer),
-              predicateBlackList: this.#predicateBlackList,
-            });
+          if (trailLeafQuad.object.termType === "NamedNode") {
+            if (this.#isAllowed(trailLeafQuad, pathTrailPointer)) {
+              const nestedShaclCbd = new ShaclCbc({
+                subject: trailLeafQuad.object,
+                engine: this.#engine,
+                sources: this.#sources,
+                shapesPointer:
+                  this.#propertyPointerToNextNodeShape(propertyShapePointer),
+                predicateBlackList: this.#predicateBlackList,
+              });
 
-            this.#nestedPromises.push(
-              nestedShaclCbd.get().then((nestedStore) => {
-                this.#log(
-                  `Nested SHACL CBD for ${trailLeafQuad.object.value} completed.`
-                );
-                if (nestedStore.size > 0) {
+              this.#nestedPromises.push(
+                nestedShaclCbd.get().then((nestedStore) => {
                   this.#store.addAll(nestedStore);
-                }
-              })
-            );
+                })
+              );
+            }
           }
 
           this.#addQuadToStructure(trailLeafQuad, pathTrailPointer);
