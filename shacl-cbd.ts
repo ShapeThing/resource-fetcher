@@ -58,6 +58,8 @@ const defaultPredicateBlackList = [
   owl("inverseOf"),
 ];
 
+const defaultPredicateWhiteList = [rdf("rest"), rdf("first")];
+
 const inflightPromises = new Map();
 
 /**
@@ -98,7 +100,7 @@ export default class ShaclCbc {
   #store: Store = new Store();
   #predicateBlackList: Term[] = [];
   #maxDepth: number;
-  #nestedPromises: Promise<void>[] = [];
+  #nestedCbds: ShaclCbc[] = [];
   #log: (...args: any[]) => void;
   #trails: TrailItem = {
     children: [],
@@ -144,24 +146,105 @@ export default class ShaclCbc {
     const isBlacklisted = this.#predicateBlackList.some((predicate) =>
       quad.predicate.equals(predicate)
     );
+
     if (isBlacklisted) return;
+    if (trailItem.depth >= this.#maxDepth) return;
+
+    if (quad.object.termType === "Literal") return true;
+    if (quad.object.termType === "BlankNode") return true;
+    if (quad.predicate.value.startsWith(sh("").value)) return true;
+    const whitelisted = defaultPredicateWhiteList.some((predicate) =>
+      quad.predicate.equals(predicate)
+    );
+    if (whitelisted) return true;
     if (trailItem.depth < this.#maxDepth) return true;
+    const inShape = trailItem.shapesPointer
+      ?.out(sh("property"))
+      .hasOut(sh("path"), quad.predicate).terms.length;
+    if (inShape) return true;
+  }
 
-    if (trailItem.depth === 0 && quad.object.termType === "Literal") {
-      return true;
+  /**
+   * After the query is executed we process the result store.
+   * This will walk the trails and add new quads to the structure.
+   * If a trail has been processed, it will not be processed again.
+   * If a trail needs another cycle, it will be marked as such.
+   * If a trail has no more children, it will be marked as processed.
+   */
+  #processResultStore(store: Store) {
+    const pointer = grapoi({
+      factory,
+      dataset: store,
+      term: this.subject,
+    });
+
+    let algorithmNeedsAnotherCycle = false;
+
+    // We start for each predicate of the initial ?s ?p ?o query.
+    // We can close trails when no blank nodes are found as leaf nodes.
+    for (const child of this.#trails.children) {
+      let branchNeedsAnotherCycle = false;
+      const childPaths = this.#trailToFlatList(child);
+
+      for (const path of childPaths) {
+        // We need to get the internal structure un to the last predicate.
+        // You could agree this.#trailToFlatList should provide it so the code is easier.
+        let pathTrailPointer: TrailItem = this.#trails as TrailItem;
+        for (const predicate of path) {
+          pathTrailPointer = pathTrailPointer.children.find(
+            (trailItem: TrailItem) => trailItem.predicate?.equals(predicate)
+          )!;
+        }
+
+        let pathDataPointer = pointer;
+        for (const predicate of path) {
+          pathDataPointer = pathDataPointer.distinct().out(predicate);
+        }
+
+        // One query trail can have multiple results, so we need to iterate over them
+        // These are leaf quads as we use distinct.
+        const trailLeafQuads: Quad[] = [
+          ...pathDataPointer.distinct().out().quads(),
+        ];
+
+        for (const trailLeafQuad of trailLeafQuads) {
+          const propertyShapePointer = pathTrailPointer.shapesPointer
+            ?.out(sh("property"))
+            .hasOut(sh("path"), trailLeafQuad.predicate);
+
+          if (trailLeafQuad.object.termType === "BlankNode") {
+            branchNeedsAnotherCycle = true;
+          }
+
+          if (trailLeafQuad.object.termType === "NamedNode") {
+            if (this.#isAllowed(trailLeafQuad, pathTrailPointer)) {
+              this.#nestedCbds.push(
+                new ShaclCbc({
+                  subject: trailLeafQuad.object,
+                  engine: this.#engine,
+                  sources: this.#sources,
+                  shapesPointer:
+                    this.#propertyPointerToNextNodeShape(propertyShapePointer),
+                  predicateBlackList: this.#predicateBlackList,
+                })
+              );
+            }
+          }
+
+          this.#addQuadToStructure(trailLeafQuad, pathTrailPointer);
+        }
+      }
+
+      if (branchNeedsAnotherCycle) {
+        algorithmNeedsAnotherCycle = true;
+      } else {
+        this.#store.addAll(store);
+        child.processed = true;
+      }
     }
 
-    if (quad.object.termType === "BlankNode") {
-      return true;
-    }
-
-    if (
-      trailItem.shapesPointer
-        ?.out(sh("property"))
-        .hasOut(sh("path"), quad.predicate).terms.length
-    ) {
-      return true;
-    }
+    this.#log({ algorithmNeedsAnotherCycle });
+    return algorithmNeedsAnotherCycle;
   }
 
   async get(): Promise<Store> {
@@ -198,7 +281,10 @@ export default class ShaclCbc {
       currentCycle++;
     }
 
-    await Promise.all(this.#nestedPromises);
+    for (const nestedCbd of this.#nestedCbds) {
+      const nestedStore = await nestedCbd.get();
+      this.#store.addAll(nestedStore);
+    }
 
     return this.#store;
   }
@@ -379,93 +465,6 @@ export default class ShaclCbc {
     }
 
     return store;
-  }
-
-  /**
-   * After the query is executed we process the result store.
-   * This will walk the trails and add new quads to the structure.
-   * If a trail has been processed, it will not be processed again.
-   * If a trail needs another cycle, it will be marked as such.
-   * If a trail has no more children, it will be marked as processed.
-   */
-  #processResultStore(store: Store) {
-    const pointer = grapoi({
-      factory,
-      dataset: store,
-      term: this.subject,
-    });
-
-    let algorithmNeedsAnotherCycle = false;
-
-    // We start for each predicate of the initial ?s ?p ?o query.
-    // We can close trails when no blank nodes are found as leaf nodes.
-    for (const child of this.#trails.children) {
-      let branchNeedsAnotherCycle = false;
-      const childPaths = this.#trailToFlatList(child);
-
-      for (const path of childPaths) {
-        // We need to get the internal structure un to the last predicate.
-        // You could agree this.#trailToFlatList should provide it so the code is easier.
-        let pathTrailPointer: TrailItem = this.#trails as TrailItem;
-        for (const predicate of path) {
-          pathTrailPointer = pathTrailPointer.children.find(
-            (trailItem: TrailItem) => trailItem.predicate?.equals(predicate)
-          )!;
-        }
-
-        let pathDataPointer = pointer;
-        for (const predicate of path) {
-          pathDataPointer = pathDataPointer.distinct().out(predicate);
-        }
-
-        // One query trail can have multiple results, so we need to iterate over them
-        // These are leaf quads as we use distinct.
-        const trailLeafQuads: Quad[] = [
-          ...pathDataPointer.distinct().out().quads(),
-        ];
-
-        for (const trailLeafQuad of trailLeafQuads) {
-          const propertyShapePointer = pathTrailPointer.shapesPointer
-            ?.out(sh("property"))
-            .hasOut(sh("path"), trailLeafQuad.predicate);
-
-          if (trailLeafQuad.object.termType === "BlankNode") {
-            branchNeedsAnotherCycle = true;
-          }
-
-          if (trailLeafQuad.object.termType === "NamedNode") {
-            if (this.#isAllowed(trailLeafQuad, pathTrailPointer)) {
-              const nestedShaclCbd = new ShaclCbc({
-                subject: trailLeafQuad.object,
-                engine: this.#engine,
-                sources: this.#sources,
-                shapesPointer:
-                  this.#propertyPointerToNextNodeShape(propertyShapePointer),
-                predicateBlackList: this.#predicateBlackList,
-              });
-
-              this.#nestedPromises.push(
-                nestedShaclCbd.get().then((nestedStore) => {
-                  this.#store.addAll(nestedStore);
-                })
-              );
-            }
-          }
-
-          this.#addQuadToStructure(trailLeafQuad, pathTrailPointer);
-        }
-      }
-
-      if (branchNeedsAnotherCycle) {
-        algorithmNeedsAnotherCycle = true;
-      } else {
-        this.#store.addAll(store);
-        child.processed = true;
-      }
-    }
-
-    this.#log({ algorithmNeedsAnotherCycle });
-    return algorithmNeedsAnotherCycle;
   }
 
   /**
