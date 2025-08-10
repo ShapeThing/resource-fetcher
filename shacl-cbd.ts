@@ -23,7 +23,8 @@ import { groupBy } from "lodash-es";
 
 const sh = namespace("http://www.w3.org/ns/shacl#");
 const rdf = namespace("http://www.w3.org/1999/02/22-rdf-syntax-ns#");
-const log = debug("shacl-cbd");
+const rdfs = namespace("http://www.w3.org/2000/01/rdf-schema#");
+const owl = namespace("http://www.w3.org/2002/07/owl#");
 
 type Options = {
   subject: Quad_Subject;
@@ -46,7 +47,18 @@ type TrailItem = {
 
 type EngineSources = [QuerySourceUnidentified, ...QuerySourceUnidentified[]];
 
-const defaultPredicateBlackList = [sh("shapesGraph")];
+const defaultPredicateBlackList = [
+  sh("shapesGraph"),
+  rdf("type"),
+  owl("disjointWith"),
+  rdfs("subClassOf"),
+  rdfs("isDefinedBy"),
+  rdfs("domain"),
+  rdfs("range"),
+  owl("inverseOf"),
+];
+
+const inflightPromises = new Map();
 
 /**
  * SHACL-based Concise Bounded Description (CBD) fetcher.
@@ -82,9 +94,12 @@ export default class ShaclCbc {
   #engine: QueryEngine;
   #sources: EngineSources;
   #shapesPointer?: Grapoi;
+  #shapes?: Dataset;
   #store: Store = new Store();
   #predicateBlackList: Term[] = [];
   #maxDepth: number;
+  #nestedPromises: Promise<void>[] = [];
+  #log: (...args: any[]) => void;
   #trails: TrailItem = {
     children: [],
     depth: 0,
@@ -99,10 +114,10 @@ export default class ShaclCbc {
     maxDepth,
     predicateBlackList,
   }: Options) {
-    log("Starting SHACL CBD process for subject:", subject.value);
-    this.#shapesPointer =
-      shapesPointer ??
-      (shapes ? grapoi({ factory, dataset: shapes }) : undefined);
+    this.#log = debug(`shacl-cbd:${subject.value}`);
+    this.#log("Starting SHACL CBD process for subject:", subject.value);
+    this.#shapesPointer = shapesPointer;
+    this.#shapes = shapes;
     this.#sources = sources;
     this.#engine = engine;
     this.subject = subject;
@@ -115,7 +130,7 @@ export default class ShaclCbc {
       sources: this.#sources,
       unionDefaultGraph: true,
       baseIRI: "http://example.org/",
-      log: process.env["DEBUG"]?.includes("shacl-cbd")
+      log: process.env["DEBUG"]?.includes("comunica")
         ? new LoggerPretty({ level: "debug" })
         : undefined,
     };
@@ -149,10 +164,28 @@ export default class ShaclCbc {
     }
   }
 
+  async get(): Promise<Store> {
+    if (inflightPromises.has(this.subject.value)) {
+      this.#log(
+        `Already processing subject ${this.subject.value}, returning existing promise.`
+      );
+      return inflightPromises.get(this.subject.value)!;
+    } else {
+      this.#log(`Starting new processing for subject ${this.subject.value}.`);
+      const promise = this.#execute();
+      inflightPromises.set(this.subject.value, promise);
+      try {
+        return await promise;
+      } finally {
+        inflightPromises.delete(this.subject.value);
+      }
+    }
+  }
+
   /**
    * The heart beat of the algorithm. Each execution will tell if there should be another round or not.
    */
-  async execute(): Promise<Store> {
+  async #execute(): Promise<Store> {
     await this.#initialFetch();
 
     let currentCycle = 1;
@@ -160,11 +193,13 @@ export default class ShaclCbc {
     let shouldContinue = true;
     while (shouldContinue && currentCycle < this.#maxDepth) {
       shouldContinue = await this.#executeStep();
-      log({ currentCycle, shouldContinue });
+      this.#log({ currentCycle, shouldContinue });
+      this.#log(this.#debugState());
       currentCycle++;
     }
 
-    log(this.#debugState());
+    await Promise.all(this.#nestedPromises);
+
     return this.#store;
   }
 
@@ -186,27 +221,28 @@ export default class ShaclCbc {
     const quads = await response.toArray();
 
     // After this first fetch we can set the SHACL shapes pointer
-    if (this.#shapesPointer) {
+    if (!this.#shapesPointer && this.#shapes) {
       const types = quads
         .filter((quad) => quad.predicate.equals(rdf("type")))
         .map((quad) => quad.object);
 
-      const shapesPointer = this.#shapesPointer
+      const shapesPointer = grapoi({ factory, dataset: this.#shapes })
         .hasOut(rdf("type"), sh("NodeShape"))
         .hasOut(sh("targetClass"), types);
       this.#shapesPointer = shapesPointer.terms.length
         ? shapesPointer
         : undefined;
-
-      this.#trails.shapesPointer = shapesPointer;
     }
+    this.#trails.shapesPointer = this.#shapesPointer;
 
     for (const quad of quads) {
       this.#addQuadToStructure(quad, this.#trails);
+      if (quad.object.termType !== "BlankNode") {
+        this.#store.addQuad(quad);
+      }
     }
 
-    const resultStore = new Store(quads);
-    this.#processResultStore(resultStore);
+    this.#log(this.#debugState());
   }
 
   /**
@@ -252,7 +288,7 @@ export default class ShaclCbc {
   async #executeStep() {
     if (!this.#trails.children.length) return false;
     const query = this.#generateQuery();
-    log("Executing query:", query);
+    this.#log("Executing query:", query);
     const response = await this.#engine.queryBindings(
       query,
       this.#comunicaOptions
@@ -267,8 +303,8 @@ export default class ShaclCbc {
    * Generates a SPARQL query based on the current trails.
    */
   #generateQuery(): string {
-    const { allPaths } = this.#getMeta();
-    const pathsGrouped = groupBy(allPaths, (paths) => paths.length);
+    const { unprocessedPaths } = this.#getMeta();
+    const pathsGrouped = groupBy(unprocessedPaths, (paths) => paths.length);
     const unionsClauses = Object.entries(pathsGrouped).map(
       ([length, paths]) => {
         const currentDepth = parseInt(length);
@@ -361,11 +397,15 @@ export default class ShaclCbc {
 
     let algorithmNeedsAnotherCycle = false;
 
+    // We start for each predicate of the initial ?s ?p ?o query.
+    // We can close trails when no blank nodes are found as leaf nodes.
     for (const child of this.#trails.children) {
       let branchNeedsAnotherCycle = false;
       const childPaths = this.#trailToFlatList(child);
 
       for (const path of childPaths) {
+        // We need to get the internal structure un to the last predicate.
+        // You could agree this.#trailToFlatList should provide it so the code is easier.
         let pathTrailPointer: TrailItem = this.#trails as TrailItem;
         for (const predicate of path) {
           pathTrailPointer = pathTrailPointer.children.find(
@@ -374,26 +414,53 @@ export default class ShaclCbc {
         }
 
         let pathDataPointer = pointer;
-        const trailQuads: Quad[] = [];
         for (const predicate of path) {
-          trailQuads.push(...pathDataPointer.quads());
           pathDataPointer = pathDataPointer.distinct().out(predicate);
         }
 
         // One query trail can have multiple results, so we need to iterate over them
         // These are leaf quads as we use distinct.
-        const trailLeafQuads: Quad[] = [...pathDataPointer.quads()];
+        const trailLeafQuads: Quad[] = [
+          ...pathDataPointer.distinct().out().quads(),
+        ];
 
         for (const trailLeafQuad of trailLeafQuads) {
-          const nextQuads = [...store.match(trailLeafQuad.object as N3Term)];
+          const propertyShapePointer = pathTrailPointer.shapesPointer
+            ?.out(sh("property"))
+            .hasOut(sh("path"), trailLeafQuad.predicate);
 
-          for (const nextQuad of nextQuads) {
-            if (this.#isAllowed(nextQuad, pathTrailPointer)) {
-              branchNeedsAnotherCycle = true;
-            }
+          const predicateIsInShape = propertyShapePointer?.terms.length;
 
-            this.#addQuadToStructure(nextQuad, pathTrailPointer);
+          if (trailLeafQuad.object.termType === "BlankNode") {
+            branchNeedsAnotherCycle = true;
           }
+
+          if (
+            predicateIsInShape &&
+            trailLeafQuad.object.termType === "NamedNode"
+          ) {
+            const nestedShaclCbd = new ShaclCbc({
+              subject: trailLeafQuad.object,
+              engine: this.#engine,
+              sources: this.#sources,
+              shapesPointer:
+                this.#propertyPointerToNextNodeShape(propertyShapePointer),
+              predicateBlackList: this.#predicateBlackList,
+            });
+
+            this.#nestedPromises.push(
+              nestedShaclCbd.get().then((nestedStore) => {
+                this.#log(
+                  `Nested SHACL CBD for ${trailLeafQuad.object.value} completed.`
+                );
+                if (nestedStore.size > 0) {
+                  this.#store.addAll(nestedStore);
+                }
+              })
+            );
+          }
+
+          this.#addQuadToStructure(trailLeafQuad, pathTrailPointer);
         }
       }
 
@@ -405,7 +472,7 @@ export default class ShaclCbc {
       }
     }
 
-    log({ algorithmNeedsAnotherCycle });
+    this.#log({ algorithmNeedsAnotherCycle });
     return algorithmNeedsAnotherCycle;
   }
 
@@ -414,20 +481,31 @@ export default class ShaclCbc {
    * This includes all paths, the current depth, and the available fetch depths.
    */
   #getMeta() {
-    const allPaths: Term[][] = [];
-    for (const trail of this.#trails.children) {
+    const unprocessedPaths: Term[][] = [];
+    for (const trail of this.#trails.children.filter(
+      (child) => !child.processed
+    )) {
       const paths = this.#trailToFlatList(trail);
-      allPaths.push(...paths);
+      unprocessedPaths.push(...paths);
     }
 
-    const currentDepth = Math.max(...allPaths.map((path) => path.length));
-    const depths = Array.from(Array(currentDepth).keys()).map((d) => d + 1);
-    const fetchDepths = Array.from(Array(currentDepth + 1).keys()).map(
-      (d) => d + 1
+    const currentDepth = Math.max(
+      ...unprocessedPaths.map((path) => path.length)
     );
+    let depths: number[] = [];
+    let fetchDepths: number[] = [];
+    try {
+      depths = Array.from(Array(currentDepth).keys()).map((d) => d + 1);
+      fetchDepths = Array.from(Array(currentDepth + 1).keys()).map(
+        (d) => d + 1
+      );
+    } catch {
+      depths = [];
+      fetchDepths = [];
+    }
 
     return {
-      allPaths,
+      unprocessedPaths,
       currentDepth,
       depths,
       fetchDepths,
@@ -440,6 +518,7 @@ export default class ShaclCbc {
    */
   #trailToFlatList(trailItem: TrailItem): Term[][] {
     const result: Term[][] = [];
+
     const buildPathsFromNode = (
       trailItem: TrailItem,
       currentPath: Term[] = []
@@ -453,6 +532,7 @@ export default class ShaclCbc {
       }
 
       for (const child of trailItem.children) {
+        if (child.processed) continue;
         buildPathsFromNode(child, newPath);
       }
     };
@@ -469,7 +549,8 @@ export default class ShaclCbc {
       this.#trails,
       (key: string, value: unknown) => {
         if (key === "parent") return undefined;
-        if (key === "shapesPointer") return !!(value as Grapoi)?.terms.length;
+        if (key === "shapesPointer")
+          return (value as Grapoi)?.terms.map((term) => term.value);
         if (key === "predicate") return (value as Term).value;
         if (key === "children" && (value as TrailItem[]).length === 0)
           return undefined;

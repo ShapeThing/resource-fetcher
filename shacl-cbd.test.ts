@@ -39,7 +39,8 @@ for (const testFolder of filtered2) {
       sources: [store],
     });
 
-    const resultStore = await cbd.execute();
+    cbd.get();
+    const resultStore = await cbd.get();
 
     const serializedResult = await write(resultStore, {
       prefixes: (parser as any)._prefixes,

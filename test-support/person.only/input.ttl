@@ -184,13 +184,13 @@
     sh:maxCount 1 ;
     sh:minCount 1;
     sh:group <#general> ;
-    sh:node <#addressShape> ;
+    sh:node :addressShape ;
     sh:nodeKind sh:BlankNode ;
   ];
 
 .
 
-<#addressShape>
+:addressShape
     a sh:NodeShape, stsr:SubShape ;
     sh:targetClass schema:PostalAddress ;
     sh:closed true ;
