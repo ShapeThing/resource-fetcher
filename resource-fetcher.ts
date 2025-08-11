@@ -1,4 +1,3 @@
-import debug from "debug";
 import type { QueryEngine } from "@comunica/query-sparql";
 import type { QuerySourceUnidentified } from "@comunica/types";
 import type {

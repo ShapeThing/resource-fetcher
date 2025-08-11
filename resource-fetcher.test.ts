@@ -48,7 +48,8 @@ for (const testFolder of filtered2) {
     const resultStore = await cbd.get();
 
     const serializedResult = await write(resultStore, {
-      prefixes: (parser as any)._prefixes,
+      prefixes: (parser as unknown as { _prefixes: Record<string, string> })
+        ._prefixes,
       ordered: true,
     });
 
