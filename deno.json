@@ -1,8 +1,8 @@
 {
   "license": "GPL-3.0-only",
   "name": "@shapething/resource-fetcher",
-  "version": "0.1.7",
-  "exports": "./shacl-cbd.ts",
+  "version": "0.1.8",
+  "exports": "./resource-fetcher.ts",
   "imports": {
     "@comunica/logger-pretty": "npm:@comunica/logger-pretty@^4.2.0",
     "@comunica/query-sparql": "npm:@comunica/query-sparql@^4.3.0",

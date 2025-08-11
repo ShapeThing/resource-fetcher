@@ -2,7 +2,7 @@ import { DataFactory, Parser, Store } from "n3";
 import { QueryEngine } from "@comunica/query-sparql";
 import { write } from "@jeswr/pretty-turtle";
 import { expect } from "jsr:@std/expect";
-import ShaclCbc from "./shacl-cbd.ts";
+import ResourceFetcher from "./resource-fetcher.ts";
 
 const { namedNode } = DataFactory;
 
@@ -29,14 +29,20 @@ for (const testFolder of filtered2) {
     const expectedOutput = await Deno.readTextFile(
       `./test-support/${testFolder.name}/output.ttl`
     );
+
+    const testSettings = (
+      await import(`./test-support/${testFolder.name}/settings.ts`)
+    ).default;
+
     const quads = parser.parse(input);
     const store = new Store(quads);
 
-    const cbd = new ShaclCbc({
+    const cbd = new ResourceFetcher({
       subject: namedNode(iri),
       engine,
       shapes: store,
       sources: [store],
+      ...testSettings,
     });
 
     const resultStore = await cbd.get();

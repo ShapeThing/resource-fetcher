@@ -35,7 +35,7 @@ const fetcher = new ResourceFetcher({
   predicateBlackList: [namedNode('http://example.org/skipThis')], // Optional
 })
 
-const store = await fetcher.execute()
+const store = await fetcher.get()
 ```
 
 ## Caveats

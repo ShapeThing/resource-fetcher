@@ -1,5 +1,4 @@
 import debug from "debug";
-import { LoggerPretty } from "@comunica/logger-pretty";
 import type { QueryEngine } from "@comunica/query-sparql";
 import type { QuerySourceUnidentified } from "@comunica/types";
 import type {
@@ -17,8 +16,6 @@ import grapoi from "grapoi";
 import factory from "@rdfjs/data-model";
 import type Grapoi from "./Grapoi.ts";
 import { Store } from "n3";
-import type { Term as N3Term } from "n3";
-import process from "node:process";
 import { groupBy } from "lodash-es";
 
 const sh = namespace("http://www.w3.org/ns/shacl#");
@@ -34,7 +31,21 @@ type Options = {
   shapes?: Dataset;
   shapesPointer?: Grapoi;
   predicateBlackList?: Term[];
+  passThroughCallback?: PassThroughCallback;
+  debug?: true;
 };
+
+type PassThroughCallback = ({
+  quad,
+  depth,
+  maxDepth,
+  shapesPointer,
+}: {
+  quad: Quad;
+  depth: number;
+  maxDepth: number;
+  shapesPointer?: Grapoi;
+}) => boolean;
 
 type TrailItem = {
   predicate?: NamedNode;
@@ -51,16 +62,55 @@ const defaultPredicateBlackList = [
   sh("shapesGraph"),
   rdf("type"),
   owl("disjointWith"),
+  owl("inverseOf"),
+  owl("equivalentProperty"),
+  owl("equivalentClass"),
   rdfs("subClassOf"),
   rdfs("isDefinedBy"),
   rdfs("domain"),
   rdfs("range"),
-  owl("inverseOf"),
+  rdfs("subPropertyOf"),
 ];
 
 const defaultPredicateWhiteList = [rdf("rest"), rdf("first")];
 
 const inflightPromises = new Map();
+
+export const shaclPassThroughCallback: PassThroughCallback = ({ quad }) => {
+  const allowedPredicates = [sh("property"), sh("node")];
+  if (allowedPredicates.some((predicate) => quad.predicate.equals(predicate))) {
+    return true;
+  }
+
+  return false;
+};
+
+export const genericPassThroughCallback: PassThroughCallback = ({
+  quad,
+  depth,
+  maxDepth,
+  shapesPointer,
+}) => {
+  const isBlackListed = defaultPredicateBlackList.some((predicate) =>
+    quad.predicate.equals(predicate)
+  );
+  if (isBlackListed) return false;
+
+  const whitelisted = defaultPredicateWhiteList.some((predicate) =>
+    quad.predicate.equals(predicate)
+  );
+  if (whitelisted) return true;
+
+  if (depth >= maxDepth) return false;
+  if (quad.object.termType === "Literal") return true;
+  if (quad.object.termType === "BlankNode") return true;
+  if (depth < maxDepth) return true;
+  const inShape = shapesPointer
+    ?.out(sh("property"))
+    .hasOut(sh("path"), quad.predicate).terms.length;
+  if (inShape) return true;
+  return false;
+};
 
 /**
  * SHACL-based Concise Bounded Description (CBD) fetcher.
@@ -91,17 +141,17 @@ const inflightPromises = new Map();
  * in coordinated queries, avoiding blank node identity conflicts.
  *
  */
-export default class ShaclCbc {
+export default class ResourceFetcher {
   public subject: Quad_Subject;
   #engine: QueryEngine;
   #sources: EngineSources;
   #shapesPointer?: Grapoi;
   #shapes?: Dataset;
   #store: Store = new Store();
-  #predicateBlackList: Term[] = [];
   #maxDepth: number;
-  #nestedCbds: ShaclCbc[] = [];
-  #log: (...args: any[]) => void;
+  #passThroughCallback?: PassThroughCallback;
+  #nestedCbds: ResourceFetcher[] = [];
+  #log: (...args: unknown[]) => void;
   #trails: TrailItem = {
     children: [],
     depth: 0,
@@ -114,17 +164,18 @@ export default class ShaclCbc {
     sources,
     shapesPointer,
     maxDepth,
-    predicateBlackList,
+    passThroughCallback,
+    debug,
   }: Options) {
-    this.#log = debug(`shacl-cbd`);
+    this.#log = debug ? console.log : () => {};
     this.#log("Starting SHACL CBD process for subject:", subject.value);
     this.#shapesPointer = shapesPointer;
     this.#shapes = shapes;
     this.#sources = sources;
     this.#engine = engine;
     this.subject = subject;
-    this.#predicateBlackList = predicateBlackList ?? defaultPredicateBlackList;
     this.#maxDepth = maxDepth ?? 20;
+    this.#passThroughCallback = passThroughCallback;
   }
 
   get #comunicaOptions() {
@@ -132,9 +183,6 @@ export default class ShaclCbc {
       sources: this.#sources,
       unionDefaultGraph: true,
       baseIRI: "http://example.org/",
-      log: process.env["DEBUG"]?.includes("comunica")
-        ? new LoggerPretty({ level: "debug" })
-        : undefined,
     };
   }
 
@@ -143,25 +191,14 @@ export default class ShaclCbc {
    * This is the place where we check in the SHACL shape if the property should be allowed.
    */
   #isAllowed(quad: Quad, trailItem: TrailItem) {
-    const isBlacklisted = this.#predicateBlackList.some((predicate) =>
-      quad.predicate.equals(predicate)
-    );
-
-    if (isBlacklisted) return;
-    if (trailItem.depth >= this.#maxDepth) return;
-
-    if (quad.object.termType === "Literal") return true;
-    if (quad.object.termType === "BlankNode") return true;
-    if (quad.predicate.value.startsWith(sh("").value)) return true;
-    const whitelisted = defaultPredicateWhiteList.some((predicate) =>
-      quad.predicate.equals(predicate)
-    );
-    if (whitelisted) return true;
-    if (trailItem.depth < this.#maxDepth) return true;
-    const inShape = trailItem.shapesPointer
-      ?.out(sh("property"))
-      .hasOut(sh("path"), quad.predicate).terms.length;
-    if (inShape) return true;
+    const passThroughCallback =
+      this.#passThroughCallback || genericPassThroughCallback;
+    return passThroughCallback({
+      quad,
+      depth: trailItem.depth,
+      maxDepth: this.#maxDepth,
+      shapesPointer: this.#shapesPointer,
+    });
   }
 
   /**
@@ -219,13 +256,13 @@ export default class ShaclCbc {
           if (trailLeafQuad.object.termType === "NamedNode") {
             if (this.#isAllowed(trailLeafQuad, pathTrailPointer)) {
               this.#nestedCbds.push(
-                new ShaclCbc({
+                new ResourceFetcher({
                   subject: trailLeafQuad.object,
                   engine: this.#engine,
                   sources: this.#sources,
+                  passThroughCallback: this.#passThroughCallback,
                   shapesPointer:
                     this.#propertyPointerToNextNodeShape(propertyShapePointer),
-                  predicateBlackList: this.#predicateBlackList,
                 })
               );
             }
