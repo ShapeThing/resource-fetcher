@@ -29,12 +29,11 @@ type Options = {
   maxDepth?: number;
   shapes?: Dataset;
   shapesPointer?: Grapoi;
-  predicateBlackList?: Term[];
   passThroughCallback?: PassThroughCallback;
   debug?: true;
 };
 
-type PassThroughCallback = ({
+export type PassThroughCallback = ({
   quad,
   depth,
   maxDepth,

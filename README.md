@@ -22,7 +22,7 @@ across separate queries.
 ## Usage
 
 ```typescript
-import ResourceFetcher from '@shapething/resource-fetcher'
+import ResourceFetcher, { shaclPassThroughCallback } from '@shapething/resource-fetcher'
 import { QueryEngine } from '@comunica/query-sparql'
 import { namedNode } from '@rdfjs/data-model'
 
@@ -32,7 +32,7 @@ const fetcher = new ResourceFetcher({
   sources: ['https://example.org/data.ttl'],
   shapes: myShapesDataset, // Optional
   maxDepth: 10, // Optional (default: 20)
-  predicateBlackList: [namedNode('http://example.org/skipThis')], // Optional
+  passThroughCallback: shaclPassThroughCallback // optional. It allows you to define your own logic how to the algorithm should expand.
 })
 
 const store = await fetcher.get()
