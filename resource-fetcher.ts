@@ -33,6 +33,9 @@ type Options = {
   debug?: true;
 };
 
+/**
+ * A callback function type for the pass-through mechanism in ResourceFetcher.
+ */
 export type PassThroughCallback = ({
   quad,
   depth,
@@ -74,6 +77,14 @@ const defaultPredicateWhiteList = [rdf("rest"), rdf("first")];
 
 const inflightPromises = new Map();
 
+/**
+ * The SHACL pass-through callback for the ResourceFetcher.
+ * It allows only quads with predicates that are either sh:property or sh:node.
+ * This is used to filter out quads that are not relevant for the SHACL shapes.
+ * It is a simple pass-through callback that does not consider depth or maxDepth.
+ *
+ * Use this one if you know you want to fetch a SHACL shape.
+ */
 export const shaclPassThroughCallback: PassThroughCallback = ({ quad }) => {
   const allowedPredicates = [sh("property"), sh("node")];
   if (allowedPredicates.some((predicate) => quad.predicate.equals(predicate))) {
@@ -83,6 +94,14 @@ export const shaclPassThroughCallback: PassThroughCallback = ({ quad }) => {
   return false;
 };
 
+/**
+ * The default pass-through callback for the ResourceFetcher.
+ * It filters out blacklisted predicates and allows whitelisted ones.
+ * It also checks the depth and object term type to determine if the quad should be included.
+ * If the depth exceeds maxDepth, it will not include the quad.
+ * If the object is a Literal or BlankNode, it will include it.
+ * If the quad's predicate is in the shapesPointer, it will also include it.
+ */
 export const genericPassThroughCallback: PassThroughCallback = ({
   quad,
   depth,
