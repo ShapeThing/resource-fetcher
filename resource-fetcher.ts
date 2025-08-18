@@ -17,8 +17,6 @@ import type Grapoi from "./Grapoi.ts";
 import { Store } from "n3";
 import { groupBy } from "lodash-es";
 import parsePath from "./parsePath.ts";
-import { threadId } from "node:worker_threads";
-import { reverse } from "node:dns";
 
 const sh = namespace("http://www.w3.org/ns/shacl#");
 const rdf = namespace("http://www.w3.org/1999/02/22-rdf-syntax-ns#");
@@ -90,7 +88,7 @@ const defaultPredicateWhiteList = [rdf("rest"), rdf("first")];
  * Use this one if you know you want to fetch a SHACL shape.
  */
 export const shaclPassThroughCallback: PassThroughCallback = ({ quad }) => {
-  const allowedPredicates = [sh("property"), sh("node")];
+  const allowedPredicates = [sh("property"), sh("node"), sh("group")];
   if (allowedPredicates.some((predicate) => quad.predicate.equals(predicate))) {
     return true;
   }
@@ -254,7 +252,8 @@ export default class ResourceFetcher {
       let branchNeedsAnotherCycle = false;
       const childPaths = this.#trailToFlatList(child);
 
-      for (const path of childPaths) {
+      for (const pathWithFlags of childPaths) {
+        const path = pathWithFlags.predicates;
         // We need to get the internal structure un to the last predicate.
         // You could agree this.#trailToFlatList should provide it so the code is easier.
         let pathTrailPointer: TrailItem = this.#trails as TrailItem;
@@ -289,7 +288,6 @@ export default class ResourceFetcher {
               this.#isAllowed(trailLeafQuad, pathTrailPointer) &&
               !this.#inflightPromises.has(trailLeafQuad.object.value)
             ) {
-              // this.#nestedCbds.push(
               const nestedCbd = new ResourceFetcher({
                 subject: trailLeafQuad.object,
                 engine: this.#engine,
@@ -308,7 +306,6 @@ export default class ResourceFetcher {
               });
 
               this.#inflightPromises.set(trailLeafQuad.object.value, promise);
-              // );
             }
           }
 
@@ -510,48 +507,120 @@ export default class ResourceFetcher {
    * Generates a SPARQL query based on the current trails.
    */
   #generateQuery(): string {
-    const { unprocessedPaths } = this.#getMeta();
-    const pathsGrouped = groupBy(unprocessedPaths, (paths) => paths.length);
+    const { forwardPaths, reversePaths } = this.#getMeta();
 
-    const unionsClauses = Object.entries(pathsGrouped).map(
-      ([length, paths]) => {
-        const currentDepth = parseInt(length);
-        const depths = Array.from(Array(currentDepth).keys()).map((d) => d + 1);
-        const materializedPaths = paths.map(
-          (path) =>
-            `( <${this.subject.value}> ${path
-              .slice(0, currentDepth)
-              .map((term) => `<${term.value}>`)
-              .join(" ")} )`
-        );
-        const uniquePaths = [...new Set(materializedPaths)];
+    const allUnionsClauses: string[] = [];
 
-        return `{
-      VALUES (?subject ${depths
-        .map((depth) => `?depth${depth}_predicate`)
-        .join(" ")}) {
-        ${uniquePaths.join("\n        ")}
-      }
-    ${depths
-      .map((depth) => {
-        const subject = depth === 1 ? `?subject` : `?depth${depth - 1}_object`;
-        const predicate = `?depth${depth}_predicate`;
-        const object = `?depth${depth}_object`;
-        return `  ${subject} ${predicate} ${object} .`;
-      })
-      .join("\n    ")}
-      OPTIONAL {
-        ?depth${currentDepth}_object ?depth${
-          currentDepth + 1
-        }_predicate ?depth${currentDepth + 1}_object .
-      }
-    }`;
-      }
-    );
+    // Handle forward paths (normal direction)
+    if (forwardPaths.length > 0) {
+      const forwardPathsGrouped = groupBy(
+        forwardPaths,
+        (paths) => paths.length
+      );
+      const forwardUnionsClauses = Object.entries(forwardPathsGrouped).map(
+        ([length, paths]) => {
+          const currentDepth = parseInt(length);
+          const depths = Array.from(Array(currentDepth).keys()).map(
+            (d) => d + 1
+          );
+          const materializedPaths = paths.map(
+            (path) =>
+              `( <${this.subject.value}> ${path
+                .slice(0, currentDepth)
+                .map((term) => `<${term.value}>`)
+                .join(" ")} )`
+          );
+          const uniquePaths = [...new Set(materializedPaths)];
+
+          return `{
+        VALUES (?subject ${depths
+          .map((depth) => `?depth${depth}_predicate`)
+          .join(" ")}) {
+          ${uniquePaths.join("\n          ")}
+        }
+      ${depths
+        .map((depth) => {
+          const subject =
+            depth === 1 ? `?subject` : `?depth${depth - 1}_object`;
+          const predicate = `?depth${depth}_predicate`;
+          const object = `?depth${depth}_object`;
+          return `    ${subject} ${predicate} ${object} .`;
+        })
+        .join("\n      ")}
+        OPTIONAL {
+          ?depth${currentDepth}_object ?depth${
+            currentDepth + 1
+          }_predicate ?depth${currentDepth + 1}_object .
+        }
+      }`;
+        }
+      );
+      allUnionsClauses.push(...forwardUnionsClauses);
+    }
+
+    // Handle reverse paths
+    if (reversePaths.length > 0) {
+      const reversePathsGrouped = groupBy(
+        reversePaths,
+        (pathWithFlags) => pathWithFlags.predicates.length
+      );
+      const reverseUnionsClauses = Object.entries(reversePathsGrouped).map(
+        ([length, pathsWithFlags]) => {
+          const currentDepth = parseInt(length);
+          const depths = Array.from(Array(currentDepth).keys()).map(
+            (d) => d + 1
+          );
+
+          const materializedPaths = pathsWithFlags.map((pathWithFlags) => {
+            const path = pathWithFlags.predicates.slice(0, currentDepth);
+
+            // For reverse paths, we need to construct the VALUES clause differently
+            // If reversed, the subject becomes the object of the first predicate
+            const pathElements = [this.subject.value];
+            for (let i = 0; i < path.length; i++) {
+              pathElements.push(path[i].value);
+            }
+
+            return `( ${pathElements.map((elem) => `<${elem}>`).join(" ")} )`;
+          });
+          const uniquePaths = [...new Set(materializedPaths)];
+
+          return `{
+        VALUES (?reverse_subject ${depths
+          .map((depth) => `?reverse_depth${depth}_predicate`)
+          .join(" ")}) {
+          ${uniquePaths.join("\n          ")}
+        }
+      ${depths
+        .map((depth) => {
+          // For reverse paths, flip the subject and object
+          const object =
+            depth === 1
+              ? `?reverse_subject`
+              : `?reverse_depth${depth - 1}_subject`;
+          const predicate = `?reverse_depth${depth}_predicate`;
+          const subject = `?reverse_depth${depth}_subject`;
+          return `    ${object} ${predicate} ${subject} .`;
+        })
+        .join("\n      ")}
+        OPTIONAL {
+          ?reverse_depth${currentDepth}_subject ?reverse_depth${
+            currentDepth + 1
+          }_predicate ?reverse_depth${currentDepth + 1}_subject .
+        }
+      }`;
+        }
+      );
+      allUnionsClauses.push(...reverseUnionsClauses);
+    }
+
+    if (allUnionsClauses.length === 0) {
+      return "SELECT * WHERE { GRAPH ?g { } }";
+    }
 
     return `
     SELECT * WHERE { GRAPH ?g {
-      ${unionsClauses.join("\n      UNION\n")}
+      ${allUnionsClauses.join("\n      UNION\n")}
     }}
     `;
   }
@@ -566,6 +635,7 @@ export default class ResourceFetcher {
 
     for (const binding of bindings) {
       for (const depth of fetchDepths) {
+        // Handle forward paths
         const subjectVariable =
           depth === 1 ? `subject` : `depth${depth - 1}_object`;
         const predicateVariable = `depth${depth}_predicate`;
@@ -583,6 +653,25 @@ export default class ResourceFetcher {
           );
           store.addQuad(quad);
         }
+
+        // Handle reverse paths
+        const reverseObjectVariable =
+          depth === 1 ? `reverse_subject` : `reverse_depth${depth - 1}_subject`;
+        const reversePredicateVariable = `reverse_depth${depth}_predicate`;
+        const reverseSubjectVariable = `reverse_depth${depth}_subject`;
+
+        const reverseObject = binding.get(reverseObjectVariable);
+        const reversePredicate = binding.get(reversePredicateVariable);
+        const reverseSubject = binding.get(reverseSubjectVariable);
+
+        if (reverseObject && reversePredicate && reverseSubject) {
+          const reverseQuad = factory.quad(
+            reverseObject as Quad_Subject,
+            reversePredicate as Quad_Predicate,
+            reverseSubject as Quad_Object
+          );
+          store.addQuad(reverseQuad);
+        }
       }
     }
 
@@ -594,13 +683,27 @@ export default class ResourceFetcher {
    * This includes all paths, the current depth, and the available fetch depths.
    */
   #getMeta() {
-    const unprocessedPaths: Term[][] = [];
+    const unprocessedPathsWithReverse: {
+      predicates: Term[];
+      reverseFlags: boolean[];
+    }[] = [];
     for (const trail of this.#trails.children.filter(
       (child) => !child.processed
     )) {
       const paths = this.#trailToFlatList(trail);
-      unprocessedPaths.push(...paths);
+      unprocessedPathsWithReverse.push(...paths);
     }
+
+    // Split paths into forward and reverse
+    const unprocessedPaths = unprocessedPathsWithReverse.map(
+      (path) => path.predicates
+    );
+    const forwardPaths = unprocessedPathsWithReverse
+      .filter((path) => !path.reverseFlags.some((flag) => flag))
+      .map((path) => path.predicates);
+    const reversePaths = unprocessedPathsWithReverse.filter((path) =>
+      path.reverseFlags.some((flag) => flag)
+    );
 
     const currentDepth = Math.max(
       ...unprocessedPaths.map((path) => path.length)
@@ -619,6 +722,8 @@ export default class ResourceFetcher {
 
     return {
       unprocessedPaths,
+      forwardPaths,
+      reversePaths,
       currentDepth,
       depths,
       fetchDepths,
@@ -627,31 +732,42 @@ export default class ResourceFetcher {
 
   /**
    * Converts a tree of TrailItems into a flat list of paths.
-   * Each path is represented as an array of Terms (predicates).
+   * Each path is represented as an array of Terms (predicates) with reverse information.
    */
-  #trailToFlatList(trailItem: TrailItem): Term[][] {
-    const result: Term[][] = [];
+  #trailToFlatList(
+    trailItem: TrailItem
+  ): { predicates: Term[]; reverseFlags: boolean[] }[] {
+    const result: { predicates: Term[]; reverseFlags: boolean[] }[] = [];
 
     const buildPathsFromNode = (
       trailItem: TrailItem,
-      currentPath: Term[] = []
+      currentPath: Term[] = [],
+      currentReverseFlags: boolean[] = []
     ): void => {
       const newPath = [trailItem.predicate, ...currentPath].filter(
         Boolean
       ) as Term[];
+      const newReverseFlags = [
+        trailItem.reverse || false,
+        ...currentReverseFlags,
+      ];
+
       if (trailItem.children.length === 0) {
-        result.push(newPath);
+        result.push({
+          predicates: newPath.toReversed(),
+          reverseFlags: newReverseFlags.toReversed(),
+        });
         return;
       }
 
       for (const child of trailItem.children) {
         if (child.processed) continue;
-        buildPathsFromNode(child, newPath);
+        buildPathsFromNode(child, newPath, newReverseFlags);
       }
     };
 
     buildPathsFromNode(trailItem);
-    return result.map((path) => path.toReversed());
+    return result;
   }
 
   /**

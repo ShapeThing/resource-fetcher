@@ -1,0 +1,98 @@
+@prefix foaf: <http://xmlns.com/foaf/0.1/> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix sh: <http://www.w3.org/ns/shacl#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+foaf:Document a rdfs:Class, sh:NodeShape ;
+  sh:property foaf:Document_primaryTopic, foaf:Document_sha1, foaf:Document_topic .
+
+foaf:Document_primaryTopic a sh:PropertyShape ;
+  sh:class owl:Thing ;
+  sh:maxCount 1 ;
+  sh:path foaf:primaryTopic .
+
+foaf:Document_sha1 a sh:PropertyShape ;
+  sh:path foaf:sha1 .
+
+foaf:Document_topic a sh:PropertyShape ;
+  sh:class owl:Thing ;
+  sh:path foaf:topic .
+
+foaf:Image a rdfs:Class, sh:NodeShape ;
+  sh:property foaf:Image_depicts, foaf:Image_thumbnail .
+
+foaf:Image_depicts a sh:PropertyShape ;
+  sh:class owl:Thing ;
+  sh:path foaf:depicts .
+
+foaf:Image_thumbnail a sh:PropertyShape ;
+  sh:class foaf:Image ;
+  sh:path foaf:thumbnail .
+
+foaf:Person a rdfs:Class, sh:NodeShape ;
+  sh:property foaf:Person_currentProject, foaf:Person_family_name, foaf:Person_familyName, foaf:Person_firstName, foaf:Person_geekcode, foaf:Person_img, foaf:Person_knows, foaf:Person_lastName, foaf:Person_myersBriggs, foaf:Person_pastProject, foaf:Person_plan, foaf:Person_publications, foaf:Person_schoolHomepage, foaf:Person_surname, foaf:Person_workInfoHomepage, foaf:Person_workplaceHomepage .
+
+foaf:Person_currentProject a sh:PropertyShape ;
+  sh:class owl:Thing ;
+  sh:path foaf:currentProject .
+
+foaf:Person_family_name a sh:PropertyShape ;
+  sh:nodeKind sh:Literal ;
+  sh:path foaf:family_name .
+
+foaf:Person_familyName a sh:PropertyShape ;
+  sh:nodeKind sh:Literal ;
+  sh:path foaf:familyName .
+
+foaf:Person_firstName a sh:PropertyShape ;
+  sh:nodeKind sh:Literal ;
+  sh:path foaf:firstName .
+
+foaf:Person_geekcode a sh:PropertyShape ;
+  sh:nodeKind sh:Literal ;
+  sh:path foaf:geekcode .
+
+foaf:Person_img a sh:PropertyShape ;
+  sh:class foaf:Image ;
+  sh:path foaf:img .
+
+foaf:Person_knows a sh:PropertyShape ;
+  sh:class foaf:Person ;
+  sh:path foaf:knows .
+
+foaf:Person_lastName a sh:PropertyShape ;
+  sh:nodeKind sh:Literal ;
+  sh:path foaf:lastName .
+
+foaf:Person_myersBriggs a sh:PropertyShape ;
+  sh:nodeKind sh:Literal ;
+  sh:path foaf:myersBriggs .
+
+foaf:Person_pastProject a sh:PropertyShape ;
+  sh:class owl:Thing ;
+  sh:path foaf:pastProject .
+
+foaf:Person_plan a sh:PropertyShape ;
+  sh:nodeKind sh:Literal ;
+  sh:path foaf:plan .
+
+foaf:Person_publications a sh:PropertyShape ;
+  sh:class foaf:Document ;
+  sh:path foaf:publications .
+
+foaf:Person_schoolHomepage a sh:PropertyShape ;
+  sh:class foaf:Document ;
+  sh:path foaf:schoolHomepage .
+
+foaf:Person_surname a sh:PropertyShape ;
+  sh:nodeKind sh:Literal ;
+  sh:path foaf:surname .
+
+foaf:Person_workInfoHomepage a sh:PropertyShape ;
+  sh:class foaf:Document ;
+  sh:path foaf:workInfoHomepage .
+
+foaf:Person_workplaceHomepage a sh:PropertyShape ;
+  sh:class foaf:Document ;
+  sh:path foaf:workplaceHomepage .

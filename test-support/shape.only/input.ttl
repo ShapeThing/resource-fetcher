@@ -47,7 +47,7 @@
 
   sh:property [
     sh:name "Geslacht"@nl, "Gender"@en ;
-    sh:group <#general> ;
+    sh:group :generalGroup ;
     sh:in ( schema:Male schema:Female ) ;
     sh:maxCount 1;
     sh:minCount 1;
@@ -60,14 +60,14 @@
     sh:path schema:address ;
     sh:maxCount 1 ;
     sh:minCount 1;
-    sh:group <#general> ;
-    sh:node <#addressShape> ;
+    sh:group :generalGroup ;
+    sh:node :addressShape ;
     sh:nodeKind sh:BlankNode ;
   ];
 
 .
 
-<#addressShape>
+:addressShape
     a sh:NodeShape, stsr:SubShape ;
     sh:targetClass schema:PostalAddress ;
     sh:closed true ;
@@ -76,7 +76,7 @@
 
     sh:property [
         sh:name "Straatnaam"@nl, "Street"@en ;
-        sh:group <#street-and-housenumber> ;
+        sh:group :street-and-housenumber ;
         sh:path schema:streetAddress ;
         faker:generator faker:location.street ;
         sh:datatype xsd:string ;
@@ -87,7 +87,7 @@
     sh:property [
         sh:name "Postcode"@nl, "Zipcode"@en ;
         sh:path schema:postalCode ;
-        sh:group <#street-and-housenumber> ;
+        sh:group :street-and-housenumber ;
         faker:generator faker:location.zipCode ;
         sh:datatype xsd:string ;
         sh:minCount 1 ;
@@ -96,7 +96,7 @@
 
     sh:property [
         sh:name "Plaats"@nl, "Locality"@en ;
-        sh:group <#world> ;
+        sh:group :worldGroup ;
         sh:path schema:addressLocality ;
         faker:generator faker:location.city ;
         sh:datatype xsd:string ;
@@ -108,12 +108,12 @@
         sh:name "Land"@nl, "Country"@en ;
         sh:path schema:addressCountry ;
         faker:generator faker:location.country ;
-        sh:group <#world> ;
+        sh:group :worldGroup ;
         sh:datatype xsd:string ;
         sh:maxCount 1 ;
     ] .
 
-<#general>
+:generalGroup
 	a sh:PropertyGroup, stsr:CollapsiblePropertyGroup ;
   sh:name "Algemeen"@nl, "General"@en ;
 	sh:order 1 .
@@ -126,19 +126,19 @@
 
 <#name>
 	a sh:PropertyGroup, stsr:HorizontalPropertyGroup ;
-  sh:group <#general> ;
+  sh:group :generalGroup ;
 	sh:order 1 .
 
 <#dates>
 	a sh:PropertyGroup, stsr:HorizontalPropertyGroup ;
-  sh:group <#general> ;
+  sh:group :generalGroup ;
 	sh:order 2 .
 
-<#street-and-housenumber>
+:street-and-housenumber
 	a sh:PropertyGroup, stsr:HorizontalPropertyGroup ;
 	sh:order 2 .
 
-<#world>
+:worldGroup
 	a sh:PropertyGroup, stsr:HorizontalPropertyGroup ;
 	sh:order 3 .
 
