@@ -16,6 +16,9 @@ import factory from "@rdfjs/data-model";
 import type Grapoi from "./Grapoi.ts";
 import { Store } from "n3";
 import { groupBy } from "lodash-es";
+import parsePath from "./parsePath.ts";
+import { threadId } from "node:worker_threads";
+import { reverse } from "node:dns";
 
 const sh = namespace("http://www.w3.org/ns/shacl#");
 const rdf = namespace("http://www.w3.org/1999/02/22-rdf-syntax-ns#");
@@ -28,6 +31,8 @@ type Options = {
   sources: [QuerySourceUnidentified, ...QuerySourceUnidentified[]];
   maxDepth?: number;
   shapes?: Dataset;
+  inflightPromises?: Map<string, Promise<Store>>;
+  parent?: ResourceFetcher;
   shapesPointer?: Grapoi;
   passThroughCallback?: PassThroughCallback;
   debug?: true;
@@ -53,6 +58,7 @@ type TrailItem = {
   children: TrailItem[];
   depth: number;
   shapesPointer?: Grapoi;
+  reverse?: boolean;
   parent?: TrailItem;
   processed?: boolean;
 };
@@ -74,8 +80,6 @@ const defaultPredicateBlackList = [
 ];
 
 const defaultPredicateWhiteList = [rdf("rest"), rdf("first")];
-
-const inflightPromises = new Map();
 
 /**
  * The SHACL pass-through callback for the ResourceFetcher.
@@ -165,9 +169,13 @@ export default class ResourceFetcher {
   #shapesPointer?: Grapoi;
   #shapes?: Dataset;
   #store: Store = new Store();
+  parent?: ResourceFetcher;
+  #debug?: boolean;
   #maxDepth: number;
   #passThroughCallback?: PassThroughCallback;
-  #nestedCbds: ResourceFetcher[] = [];
+  #inflightPromises: Map<string, Promise<Store>>;
+  #isRoot: boolean;
+
   #log: (...args: unknown[]) => void;
   #trails: TrailItem = {
     children: [],
@@ -180,19 +188,25 @@ export default class ResourceFetcher {
     engine,
     sources,
     shapesPointer,
+    parent,
+    inflightPromises,
     maxDepth,
     passThroughCallback,
     debug,
   }: Options) {
     this.#log = debug ? console.log : () => {};
+    this.#debug = debug;
     this.#log("Starting SHACL CBD process for subject:", subject.value);
     this.#shapesPointer = shapesPointer;
     this.#shapes = shapes;
+    this.parent = parent;
     this.#sources = sources;
+    this.#isRoot = !parent;
     this.#engine = engine;
     this.subject = subject;
     this.#maxDepth = maxDepth ?? 20;
     this.#passThroughCallback = passThroughCallback;
+    this.#inflightPromises = inflightPromises ?? new Map();
   }
 
   get #comunicaOptions() {
@@ -271,17 +285,30 @@ export default class ResourceFetcher {
           }
 
           if (trailLeafQuad.object.termType === "NamedNode") {
-            if (this.#isAllowed(trailLeafQuad, pathTrailPointer)) {
-              this.#nestedCbds.push(
-                new ResourceFetcher({
-                  subject: trailLeafQuad.object,
-                  engine: this.#engine,
-                  sources: this.#sources,
-                  passThroughCallback: this.#passThroughCallback,
-                  shapesPointer:
-                    this.#propertyPointerToNextNodeShape(propertyShapePointer),
-                })
-              );
+            if (
+              this.#isAllowed(trailLeafQuad, pathTrailPointer) &&
+              !this.#inflightPromises.has(trailLeafQuad.object.value)
+            ) {
+              // this.#nestedCbds.push(
+              const nestedCbd = new ResourceFetcher({
+                subject: trailLeafQuad.object,
+                engine: this.#engine,
+                debug: this.#debug ? true : undefined,
+                parent: this,
+                inflightPromises: this.#inflightPromises,
+                sources: this.#sources,
+                passThroughCallback: this.#passThroughCallback,
+                shapesPointer:
+                  this.#propertyPointerToNextNodeShape(propertyShapePointer),
+              });
+
+              const promise = nestedCbd.get().then((nestedStore) => {
+                this.#store.addAll(nestedStore);
+                return nestedStore;
+              });
+
+              this.#inflightPromises.set(trailLeafQuad.object.value, promise);
+              // );
             }
           }
 
@@ -302,20 +329,16 @@ export default class ResourceFetcher {
   }
 
   async get(): Promise<Store> {
-    if (inflightPromises.has(this.subject.value)) {
+    if (this.#inflightPromises.has(this.subject.value)) {
       this.#log(
         `Already processing subject ${this.subject.value}, returning existing promise.`
       );
-      return inflightPromises.get(this.subject.value)!;
+      return await this.#inflightPromises.get(this.subject.value)!;
     } else {
       this.#log(`Starting new processing for subject ${this.subject.value}.`);
       const promise = this.#execute();
-      inflightPromises.set(this.subject.value, promise);
-      try {
-        return await promise;
-      } finally {
-        inflightPromises.delete(this.subject.value);
-      }
+      this.#inflightPromises.set(this.subject.value, promise);
+      return await promise;
     }
   }
 
@@ -323,6 +346,7 @@ export default class ResourceFetcher {
    * The heart beat of the algorithm. Each execution will tell if there should be another round or not.
    */
   async #execute(): Promise<Store> {
+    this.#addCurrentShaclPaths();
     await this.#initialFetch();
 
     let currentCycle = 1;
@@ -335,9 +359,11 @@ export default class ResourceFetcher {
       currentCycle++;
     }
 
-    for (const nestedCbd of this.#nestedCbds) {
-      const nestedStore = await nestedCbd.get();
-      this.#store.addAll(nestedStore);
+    if (this.#isRoot) {
+      const otherPromises = this.#inflightPromises
+        .entries()
+        .filter(([key]) => key !== this.subject.value);
+      await Promise.allSettled(otherPromises.map(([, promise]) => promise));
     }
 
     return this.#store;
@@ -348,19 +374,26 @@ export default class ResourceFetcher {
    * After the first fetch we can set the SHACL shapes pointer as we might have rdf:type triples.
    */
   async #initialFetch() {
-    const response = await this.#engine.queryQuads(
-      `CONSTRUCT { ?s ?p ?o } WHERE {
+    const initialQuery = `CONSTRUCT { ?s ?p ?o } WHERE {
         GRAPH ?g {
           VALUES ?s { <${this.subject.value}> }
           ?s ?p ?o
         }
-      }`,
+      }`;
+
+    this.#log(initialQuery);
+
+    const response = await this.#engine.queryQuads(
+      initialQuery,
       this.#comunicaOptions
     );
 
     const quads = await response.toArray();
 
     // After this first fetch we can set the SHACL shapes pointer
+    // By default we try to grab the NodeShape that matches by sh:targetClass,
+    // you can however give your own shapesPointer and set it to a generic NodeShape.
+    // TODO add a option for a fallback shape IRI.
     if (!this.#shapesPointer && this.#shapes) {
       const types = quads
         .filter((quad) => quad.predicate.equals(rdf("type")))
@@ -381,8 +414,6 @@ export default class ResourceFetcher {
         this.#store.addQuad(quad);
       }
     }
-
-    this.#log(this.#debugState());
   }
 
   /**
@@ -439,12 +470,49 @@ export default class ResourceFetcher {
     return this.#processResultStore(resultStore);
   }
 
+  #addCurrentShaclPaths() {
+    const shaclProperties = this.#shapesPointer?.out(sh("property"));
+    const paths =
+      shaclProperties
+        ?.out(sh("path"))
+        .map((pathPointer: Grapoi) => parsePath(pathPointer)) ?? [];
+
+    const filteredPaths = paths
+      // For now we only get reverse paths this way.
+      .filter((path) => path.length === 1 && path[0].start === "object");
+
+    let parentTrailItem: TrailItem = this.#trails;
+
+    for (const path of filteredPaths) {
+      for (const pathPart of path) {
+        let parent;
+        for (const predicate of pathPart.predicates) {
+          const trailItem = {
+            predicate: predicate as NamedNode,
+            parent: parentTrailItem,
+            reverse: pathPart.start === "object",
+            depth: parentTrailItem.depth + 1,
+            shapesPointer: this.#propertyPointerToNextNodeShape(
+              parentTrailItem.shapesPointer
+            ),
+            children: [],
+          };
+          parentTrailItem.children.push(trailItem);
+          if (!parent) parent = trailItem;
+        }
+
+        if (parent) parentTrailItem = parent;
+      }
+    }
+  }
+
   /**
    * Generates a SPARQL query based on the current trails.
    */
   #generateQuery(): string {
     const { unprocessedPaths } = this.#getMeta();
     const pathsGrouped = groupBy(unprocessedPaths, (paths) => paths.length);
+
     const unionsClauses = Object.entries(pathsGrouped).map(
       ([length, paths]) => {
         const currentDepth = parseInt(length);

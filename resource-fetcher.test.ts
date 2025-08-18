@@ -41,6 +41,7 @@ for (const testFolder of filtered2) {
       subject: namedNode(iri),
       engine,
       shapes: store,
+      debug: true,
       sources: [store],
       ...testSettings,
     });

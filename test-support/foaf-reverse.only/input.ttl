@@ -1,0 +1,290 @@
+@prefix dc11:        <http://purl.org/dc/elements/1.1/> .
+@prefix dcterms:     <http://purl.org/dc/terms/> .
+@prefix foaf:        <http://xmlns.com/foaf/0.1/> .
+@prefix owl:         <http://www.w3.org/2002/07/owl#> .
+@prefix rdf:         <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs:        <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix sh:          <http://www.w3.org/ns/shacl#> .
+@prefix xsd:         <http://www.w3.org/2001/XMLSchema#> .
+@prefix dbContacts:  <http://danielbeeke.nl/data/contacts/> .
+@prefix dash: <http://datashapes.org/dash#> .
+@prefix sta: <http://ontology.shapething.com/app#> .
+@prefix stsr: <http://ontology.shapething.com/shacl-renderer#> .
+@prefix dce: <http://purl.org/dc/elements/1.1/> .
+@prefix schema: <http://schema.org/> .
+@prefix sschema: <httpS://schema.org/> .
+
+
+foaf:Agent_birthday
+        rdf:type     sh:PropertyShape ;
+        sh:maxCount  1 ;
+        sh:nodeKind  sh:Literal ;
+        sh:path      foaf:birthday .
+
+foaf:Agent_status
+        rdf:type     sh:PropertyShape ;
+        sh:nodeKind  sh:Literal ;
+        sh:path      foaf:status .
+
+foaf:Agent_yahooChatID
+        rdf:type     sh:PropertyShape ;
+        sh:nodeKind  sh:Literal ;
+        sh:path      foaf:yahooChatID .
+
+foaf:Agent_account
+        rdf:type  sh:PropertyShape ;
+        sh:class  foaf:OnlineAccount ;
+        sh:path   foaf:account .
+
+foaf:Image_thumbnail
+        rdf:type  sh:PropertyShape ;
+        sh:class  foaf:Image ;
+        sh:path   foaf:thumbnail .
+
+foaf:Group_member
+        rdf:type  sh:PropertyShape ;
+        sh:class  foaf:Agent ;
+        sh:path   foaf:member .
+
+foaf:Image_depicts
+        rdf:type  sh:PropertyShape ;
+        sh:class  owl:Thing ;
+        sh:path   foaf:depicts .
+
+foaf:Agent_topic_interest
+        rdf:type  sh:PropertyShape ;
+        sh:class  owl:Thing ;
+        sh:path   foaf:topic_interest .
+
+foaf:Person_currentProject
+        rdf:type  sh:PropertyShape ;
+        sh:class  owl:Thing ;
+        sh:path   foaf:currentProject .
+
+foaf:Person_myersBriggs
+        rdf:type     sh:PropertyShape ;
+        sh:nodeKind  sh:Literal ;
+        sh:path      foaf:myersBriggs .
+
+foaf:Agent_holdsAccount
+        rdf:type  sh:PropertyShape ;
+        sh:class  foaf:OnlineAccount ;
+        sh:path   foaf:holdsAccount .
+
+foaf:Person_family_name
+        rdf:type     sh:PropertyShape ;
+        sh:nodeKind  sh:Literal ;
+        sh:path      foaf:family_name .
+
+foaf:Image  rdf:type  rdfs:Class , sh:NodeShape ;
+        sh:property  foaf:Image_depicts , foaf:Image_thumbnail .
+
+foaf:Agent_msnChatID
+        rdf:type     sh:PropertyShape ;
+        sh:nodeKind  sh:Literal ;
+        sh:path      foaf:msnChatID .
+
+foaf:Person_schoolHomepage
+        rdf:type  sh:PropertyShape ;
+        sh:class  foaf:Document ;
+        sh:path   foaf:schoolHomepage .
+
+foaf:Person_surname
+        rdf:type     sh:PropertyShape ;
+        sh:nodeKind  sh:Literal ;
+        sh:path      foaf:surname .
+
+foaf:Agent_made
+        rdf:type  sh:PropertyShape ;
+        sh:class  owl:Thing ;
+        sh:path   foaf:made .
+
+foaf:Document_sha1
+        rdf:type  sh:PropertyShape ;
+        sh:path   foaf:sha1 .
+
+foaf:Agent_tipjar
+        rdf:type  sh:PropertyShape ;
+        sh:class  foaf:Document ;
+        sh:path   foaf:tipjar .
+
+foaf:Person_firstName
+        rdf:type     sh:PropertyShape ;
+        sh:nodeKind  sh:Literal ;
+        sh:path      foaf:firstName .
+
+foaf:Person_knows
+        rdf:type  sh:PropertyShape ;
+        sh:class  foaf:Person ;
+        sh:path   foaf:knows .
+
+foaf:Agent_interest
+        rdf:type  sh:PropertyShape ;
+        sh:class  foaf:Document ;
+        sh:path   foaf:interest .
+
+foaf:Agent_weblog
+        rdf:type  sh:PropertyShape ;
+        sh:class  foaf:Document ;
+        sh:path   foaf:weblog .
+
+foaf:OnlineAccount_accountServiceHomepage
+        rdf:type  sh:PropertyShape ;
+        sh:class  foaf:Document ;
+        sh:path   foaf:accountServiceHomepage .
+
+foaf:Person_plan
+        rdf:type     sh:PropertyShape ;
+        sh:nodeKind  sh:Literal ;
+        sh:path      foaf:plan .
+
+foaf:Person_geekcode
+        rdf:type     sh:PropertyShape ;
+        sh:nodeKind  sh:Literal ;
+        sh:path      foaf:geekcode .
+
+foaf:Person_workInfoHomepage
+        rdf:type  sh:PropertyShape ;
+        sh:class  foaf:Document ;
+        sh:path   foaf:workInfoHomepage .
+
+foaf:OnlineAccount_accountName
+        rdf:type     sh:PropertyShape ;
+        sh:nodeKind  sh:Literal ;
+        sh:path      foaf:accountName .
+
+foaf:Agent_aimChatID
+        rdf:type     sh:PropertyShape ;
+        sh:nodeKind  sh:Literal ;
+        sh:path      foaf:aimChatID .
+
+foaf:OnlineAccount  rdf:type  sh:NodeShape , rdfs:Class ;
+        sh:property  foaf:OnlineAccount_accountName , foaf:OnlineAccount_accountServiceHomepage .
+
+foaf:Person_workplaceHomepage
+        rdf:type  sh:PropertyShape ;
+        sh:class  foaf:Document ;
+        sh:path   foaf:workplaceHomepage .
+
+foaf:Person_img
+        rdf:type  sh:PropertyShape ;
+        sh:class  foaf:Image ;
+        sh:path   foaf:img .
+
+foaf:Agent  rdf:type  rdfs:Class , sh:NodeShape ;
+        sh:property  foaf:Agent_jabberID , foaf:Agent_status , foaf:Agent_aimChatID , foaf:Agent_gender , foaf:Agent_age , foaf:Agent_holdsAccount , foaf:Agent_skypeID , foaf:Agent_mbox_sha1sum , foaf:Agent_tipjar , foaf:Agent_account , foaf:Agent_yahooChatID , foaf:Agent_msnChatID , foaf:Agent_mbox , foaf:Agent_weblog , foaf:Agent_birthday , foaf:Agent_interest , foaf:Agent_made , foaf:Agent_topic_interest , foaf:Agent_icqChatID , foaf:Agent_openid .
+
+foaf:Agent_openid
+        rdf:type  sh:PropertyShape ;
+        sh:class  foaf:Document ;
+        sh:path   foaf:openid .
+
+foaf:Person_pastProject
+        rdf:type  sh:PropertyShape ;
+        sh:class  owl:Thing ;
+        sh:path   foaf:pastProject .
+
+foaf:Agent_icqChatID
+        rdf:type     sh:PropertyShape ;
+        sh:nodeKind  sh:Literal ;
+        sh:path      foaf:icqChatID .
+
+foaf:Agent_skypeID
+        rdf:type     sh:PropertyShape ;
+        sh:nodeKind  sh:Literal ;
+        sh:path      foaf:skypeID .
+
+foaf:Person_publications
+        rdf:type  sh:PropertyShape ;
+        sh:class  foaf:Document ;
+        sh:path   foaf:publications .
+
+foaf:Person  rdf:type  sh:NodeShape , rdfs:Class ;
+        sh:property  foaf:Person_knows , foaf:Person_myersBriggs , foaf:Person_workplaceHomepage , foaf:Person_surname , foaf:Person_lastName , foaf:Person_pastProject , foaf:Person_img , foaf:Person_family_name , foaf:Person_schoolHomepage , foaf:Person_plan , foaf:Person_firstName , foaf:Person_workInfoHomepage , foaf:Person_geekcode , foaf:Person_familyName , foaf:Person_currentProject , foaf:Person_publications .
+
+foaf:Agent_jabberID
+        rdf:type     sh:PropertyShape ;
+        sh:nodeKind  sh:Literal ;
+        sh:path      foaf:jabberID .
+
+foaf:Person_lastName
+        rdf:type     sh:PropertyShape ;
+        sh:nodeKind  sh:Literal ;
+        sh:path      foaf:lastName .
+
+foaf:Agent_mbox
+        rdf:type  sh:PropertyShape ;
+        sh:class  owl:Thing ;
+        sh:path   foaf:mbox .
+
+foaf:Agent_age
+        rdf:type     sh:PropertyShape ;
+        sh:maxCount  1 ;
+        sh:nodeKind  sh:Literal ;
+        sh:path      foaf:age .
+
+foaf:Person_familyName
+        rdf:type     sh:PropertyShape ;
+        sh:nodeKind  sh:Literal ;
+        sh:path      foaf:familyName .
+
+foaf:Document_topic
+        rdf:type  sh:PropertyShape ;
+        sh:class  owl:Thing ;
+        sh:path   foaf:topic .
+
+foaf:Agent_mbox_sha1sum
+        rdf:type     sh:PropertyShape ;
+        sh:nodeKind  sh:Literal ;
+        sh:path      foaf:mbox_sha1sum .
+
+foaf:Document_primaryTopic
+        rdf:type     sh:PropertyShape ;
+        sh:class     owl:Thing ;
+        sh:maxCount  1 ;
+        sh:path      foaf:primaryTopic .
+
+foaf:Group  rdf:type  rdfs:Class , sh:NodeShape ;
+        sh:property  foaf:Group_member .
+
+foaf:Agent_gender
+        rdf:type     sh:PropertyShape ;
+        sh:maxCount  1 ;
+        sh:nodeKind  sh:Literal ;
+        sh:path      foaf:gender .
+
+foaf:Document  rdf:type  sh:NodeShape , rdfs:Class ;
+        sh:property  foaf:Document_sha1 , foaf:Document_topic , foaf:Document_primaryTopic .
+
+sta:GenericView
+    a sh:NodeShape ;
+
+    sh:property [
+        sh:path [ sh:alternativePath ( rdfs:label dce:title schema:name sschema:name ) ] ;
+        sh:name "Label"@en, "Label"@nl ;
+        sh:description "A human-readable label."@en, "Een leesbaar label."@nl ;
+        stsr:htmlElement "h2" ;
+        sh:order -10 ;
+    ] ;
+
+    sh:property [
+        sh:path [ sh:alternativePath ( rdfs:comment dce:description schema:description sschema:description) ] ;
+        sh:name "Description"@en, "Beschrijving"@nl ;
+        sh:description "A human-readable description."@en, "Een leesbare beschrijving."@nl ;
+        sh:order -9 ;
+    ] ;
+
+    sh:property [
+        sh:path rdf:type ;
+        sh:name "Type"@en, "Type"@nl ;
+        sh:description "The type of the resource."@en, "Het type van de resource."@nl ;
+        sh:order -8 ;
+    ] ;
+
+    sh:property [
+        sh:path [ sh:inversePath sh:targetClass ] ;
+        sh:name "Shapes"@en, "Vormen"@nl ;
+        sh:order -7 ;
+    ] ;
+.
+
