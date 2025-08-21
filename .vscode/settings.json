@@ -1,11 +1,11 @@
 {
+  "editor.codeActionsOnSave": {
+    "source.fixAll": "explicit",
+    "source.organizeImports": "always",
+    "source.fixAll.eslint": "always"
+  },
   "deno.enable": true,
   "deno.lint": true,
   "editor.formatOnSave": true,
-  "editor.defaultFormatter": "denoland.vscode-deno",
-  "cSpell.words": ["grapoi", "Shacl"],
-  "[markdown]": {
-    "editor.formatOnSave": false,
-    "editor.wordWrap": "off"
-  }
+  "editor.defaultFormatter": "denoland.vscode-deno"
 }

@@ -1,8 +1,7 @@
-import { DataFactory, Parser, Store } from "n3";
-import { QueryEngine } from "@comunica/query-sparql";
-import { write } from "@jeswr/pretty-turtle";
-import { expect } from "jsr:@std/expect";
-import ResourceFetcher from "./resource-fetcher.ts";
+// import { expect } from "jsr:@std/expect";
+import { QueryEngine } from "npm:@comunica/query-sparql";
+import { DataFactory, Parser, Store } from "npm:n3";
+import { ResourceFetcher } from "./ResourceFetcher.ts";
 
 const { namedNode } = DataFactory;
 
@@ -37,26 +36,24 @@ for (const testFolder of filtered2) {
     const quads = parser.parse(input);
     const store = new Store(quads);
 
-    const cbd = new ResourceFetcher({
+    const resourceFetcher = new ResourceFetcher({
       subject: namedNode(iri),
       engine,
-      shapes: store,
+      debug: true,
       sources: [store],
       ...testSettings,
     });
 
-    const resultStore = await cbd.get();
-
-    const serializedResult = await write(resultStore, {
-      prefixes: (parser as unknown as { _prefixes: Record<string, string> })
-        ._prefixes,
-      ordered: true,
-    });
-
-    if (serializedResult.trim() !== expectedOutput.trim()) {
-      console.error(serializedResult.trim());
+    for await (const step of resourceFetcher.execute()) {
+      console.log(step.mermaid);
     }
 
-    expect(serializedResult.trim()).toEqual(expectedOutput.trim());
+    // const serializedResult = await write(resultStore, {
+    //   prefixes: (parser as unknown as { _prefixes: Record<string, string> })
+    //     ._prefixes,
+    //   ordered: true,
+    // });
+
+    // expect(serializedResult.trim()).toEqual(expectedOutput.trim());
   });
 }

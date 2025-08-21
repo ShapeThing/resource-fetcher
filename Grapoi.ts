@@ -1,5 +1,5 @@
-import type Environment from "@rdfjs/environment";
-import type { Term, DatasetCore, Quad } from "@rdfjs/types";
+import type Environment from "npm:@rdfjs/environment";
+import type { DatasetCore, Quad, Term } from "npm:@rdfjs/types";
 
 export default Grapoi;
 /**
