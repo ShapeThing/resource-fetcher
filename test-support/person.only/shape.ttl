@@ -54,24 +54,24 @@
     sh:datatype xsd:string ;
   ];
 
-  # sh:property [
-  #   sh:name "Middelnaam"@nl, "Middle name"@en ;
-  #   sh:group <#name> ;
-  #   sh:path schema:additionalName	 ;
-  #   faker:generator faker:person.middleName ;
-  #   sh:maxCount 1;
-  #   sh:datatype xsd:string ;
-  # ];
+  sh:property [
+    sh:name "Middelnaam"@nl, "Middle name"@en ;
+    sh:group <#name> ;
+    sh:path schema:additionalName	 ;
+    faker:generator faker:person.middleName ;
+    sh:maxCount 1;
+    sh:datatype xsd:string ;
+  ];
 
-  # sh:property [
-  #   sh:name "Achternaam"@nl, "Family name"@en ;
-  #   sh:group <#name> ;
-  #   sh:path schema:familyName ;
-  #   faker:generator faker:person.lastName ;
-  #   sh:minCount 1;
-  #   sh:maxCount 1;
-  #   sh:datatype xsd:string ;
-  # ];
+  sh:property [
+    sh:name "Achternaam"@nl, "Family name"@en ;
+    sh:group <#name> ;
+    sh:path schema:familyName ;
+    faker:generator faker:person.lastName ;
+    sh:minCount 1;
+    sh:maxCount 1;
+    sh:datatype xsd:string ;
+  ];
 
   # sh:property [
   #   sh:name "Geslacht"@nl, "Gender"@en ;

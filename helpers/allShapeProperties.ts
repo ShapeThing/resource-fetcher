@@ -1,5 +1,5 @@
 import Grapoi from "../Grapoi.ts";
-import { sh } from "../ResourceFetcher.ts";
+import { sh } from "./namespaces.ts";
 
 export const allShapeProperties = (shapesPointer: Grapoi) => {
   const originalNodes = shapesPointer.terms;
@@ -17,11 +17,5 @@ export const allShapeProperties = (shapesPointer: Grapoi) => {
     .node([...originalNodes, ...logicalPointers, ...nestedPointers])
     .out().terms;
 
-  const propertyTerms = shapesPointer
-    .node(shapeTerms)
-    .out(sh("property")).terms;
-
-  return shapesPointer
-    .node([...propertyTerms, ...shapeTerms])
-    .hasOut(sh("path"));
+  return shapesPointer.node(shapeTerms).hasOut(sh("path"));
 };

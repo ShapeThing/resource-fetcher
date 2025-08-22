@@ -60,7 +60,8 @@ for (const testFolder of filtered2) {
       console.log(
         `Step #${counter}:`,
         cliLink(sparqlLink, `Query`),
-        cliLink(mermaidLink, `Diagram`)
+        mermaidLink
+        // cliLink(mermaidLink, `Diagram`)
       );
     }
     console.groupEnd();

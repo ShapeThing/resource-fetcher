@@ -30,5 +30,5 @@ export function generateMermaidLink(
     `http://mermaid.live/${editMode ? "edit" : "view"}#pako:` +
     dEncode.replace("+", "-").replace("/", "_");
 
-  return new URL(link);
+  return link;
 }

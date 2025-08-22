@@ -1,9 +1,11 @@
+import type { JsonLdContextNormalized } from "npm:jsonld-context-parser";
 import Grapoi from "../Grapoi.ts";
 import { Branch } from "../ResourceFetcher.ts";
 
 export const branchToMermaid = (
   branch: Branch,
   pointer: Grapoi,
+  context: JsonLdContextNormalized,
   subject: string = self.crypto.randomUUID(),
   object: string = self.crypto.randomUUID()
 ) => {
@@ -24,12 +26,16 @@ export const branchToMermaid = (
 
     for (const predicate of part.predicates) {
       const predicateId = self.crypto.randomUUID();
-      const localName = predicate.value.split(/\/|#/g).pop();
+      const compactedIri = context.compactIri(predicate.value);
+      const label = compactedIri
+        .replace(/http:/g, "http:‎")
+        .replace(/https:/g, "https:‎")
+        .replace(/www/g, "www‎");
 
       const triple = [
-        `${partSubject}(" ")`,
+        partSubject,
         "-->",
-        `${predicateId}("${localName}")`,
+        `${predicateId}("${label}")`,
         "-->",
         `${partObject}("${quads.length}")`,
       ];
@@ -39,6 +45,16 @@ export const branchToMermaid = (
 
       output += triple.join(" ") + "\n";
     }
+  }
+
+  for (const child of branch.children) {
+    output += branchToMermaid(
+      child,
+      pointer,
+      context,
+      // Grab the last object
+      partIdentifiers.get(pathSegment.length)!
+    );
   }
 
   return output;
