@@ -16,7 +16,8 @@
     "npm:@rdfjs/namespace@*": "2.0.1",
     "npm:@rdfjs/types@*": "2.0.1",
     "npm:grapoi@*": "1.1.3",
-    "npm:n3@*": "1.26.0"
+    "npm:n3@*": "1.26.0",
+    "npm:pako@*": "2.1.0"
   },
   "jsr": {
     "@std/assert@1.0.13": {
@@ -3889,6 +3890,9 @@
       "dependencies": [
         "fn.name"
       ]
+    },
+    "pako@2.1.0": {
+      "integrity": "sha512-w+eufiZ1WuJYgPXbV/PO3NCMEc3xqylkKHzp8bxp1uW4qaSNQUkwmLLEc3kKsfz8lpV1F8Ht3U1Cm+9Srog2ug=="
     },
     "process@0.11.10": {
       "integrity": "sha512-cdGef/drWFoydD1JsMzuFf8100nZl+GT+yacc2bEced5f9Rjk4z+WtFUTBu9PhOi9j/jfmBPu0mMEY4wIdAF8A=="

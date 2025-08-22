@@ -2,6 +2,8 @@
 import { QueryEngine } from "npm:@comunica/query-sparql";
 import { DataFactory, Parser, Store } from "npm:n3";
 import { ResourceFetcher } from "./ResourceFetcher.ts";
+import { cliLink } from "./helpers/cliLink.ts";
+import { generateMermaidLink } from "./helpers/generateMermaidLink.ts";
 
 const { namedNode } = DataFactory;
 
@@ -44,9 +46,24 @@ for (const testFolder of filtered2) {
       ...testSettings,
     });
 
+    console.groupCollapsed(
+      `Resource Fetcher: ${resourceFetcher.subject.value}`
+    );
+
+    let counter = 0;
     for await (const step of resourceFetcher.execute()) {
-      console.log(step.mermaid);
+      counter++;
+      const sparqlLink = new URL(
+        `https://yasgui.triply.cc/#query=${encodeURIComponent(step.query)}`
+      );
+      const mermaidLink = generateMermaidLink(step.mermaid);
+      console.log(
+        `Step #${counter}:`,
+        cliLink(sparqlLink, `Query`),
+        cliLink(mermaidLink, `Diagram`)
+      );
     }
+    console.groupEnd();
 
     // const serializedResult = await write(resultStore, {
     //   prefixes: (parser as unknown as { _prefixes: Record<string, string> })
