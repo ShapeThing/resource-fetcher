@@ -50,6 +50,7 @@ for (const testFolder of filtered2) {
 
     let counter = 0
     for await (const step of resourceFetcher.execute()) {
+      console.log('\n')
       counter++
       const sparqlLink = new URL(
         `https://yasgui.triply.cc/#query=${encodeURIComponent(step.query)}`,

@@ -52,8 +52,20 @@ export class ResourceFetcher {
    * The heart beat of the algorithm.
    */
   async *execute() {
-    await this.#initialFetch()
+    const shapeBranches = this.#getShapeBranches()
+    this.#branches.push(...shapeBranches)
+    yield {
+      mermaid: this.toMermaid(),
+      query: '',
+    }
 
+    await this.#executeStep(1)
+    yield {
+      mermaid: this.toMermaid(),
+      query: this.#latestQuery,
+    }
+
+    await this.#executeStep(2)
     yield {
       mermaid: this.toMermaid(),
       query: this.#latestQuery,
@@ -196,20 +208,20 @@ export class ResourceFetcher {
   }
 
   /**
-   * The initial fetch potentially over fetches the rdf:type of the next layer.
+   * One step, needs still some big changes so it works at every level.
+   * Currently it will re add nested properties.
    */
-  async #initialFetch() {
+  async #executeStep(step: number = 1) {
     const shapePredicates = this.#shapesPointer
       ? allShapeProperties(this.#shapesPointer).out(sh('path'))
         .terms.filter((term) => term.termType === 'NamedNode')
       : []
 
-    const shapeBranches = this.#getShapeBranches()
-    this.#branches.push(...shapeBranches)
-    const quads = await this.executeQuery(this.#generateQuery(1))
+    const quads = await this.executeQuery(this.#generateQuery(step))
     for (const quad of quads) this.#stepStore.add(quad)
 
-    const filteredQuads = quads.filter((quad) => !shapePredicates.some((predicate) => quad.predicate.equals(predicate)))
+    // TODO this last part gets more complex in deeper depths.
+    const filteredQuads = quads.filter((quad) => !shapePredicates.some((predicate) => quad.predicate.equals(predicate)) && quad.subject.equals(this.subject))
     const uniquePredicates = new TermSet(filteredQuads.map((quad) => quad.predicate))
 
     const quadBranches = [...uniquePredicates.values()].map((predicate) => {
