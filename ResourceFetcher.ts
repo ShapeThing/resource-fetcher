@@ -28,6 +28,7 @@ export class ResourceFetcher {
   #sources: [QuerySourceUnidentified, ...QuerySourceUnidentified[]]
   #shapesPointer?: Grapoi
   #store: DatasetCore = datasetFactory.dataset()
+  #stepStore: DatasetCore = datasetFactory.dataset()
   #latestQuery: string = ''
   #debug: boolean
 
@@ -89,17 +90,28 @@ export class ResourceFetcher {
 
     for (const binding of bindings) {
       for (let depth = 0; depth <= highestNode; depth++) {
-        const subjectVariable = `node_${depth}`
-        const predicateVariable = `predicate_${depth}`
-        const objectVariable = `node_${depth + 1}`
-        const subject = binding.get(subjectVariable)
-        const predicate = binding.get(predicateVariable)
-        const object = binding.get(objectVariable)
+        // Default direction
+        const subject = binding.get(`node_${depth}`)
+        const predicate = binding.get(`predicate_${depth}`)
+        const object = binding.get(`node_${depth + 1}`)
         if (subject && predicate && object) {
           const quad = factory.quad(
             subject as Quad_Subject,
             predicate as Quad_Predicate,
             object as Quad_Object,
+          )
+          quads.push(quad)
+        }
+
+        // Reverse direction
+        const reverseSubject = binding.get(`node_${depth}`)
+        const reversePredicate = binding.get(`predicate_${depth}`)
+        const reverseObject = binding.get(`reverse_node_${depth + 1}`)
+        if (reverseSubject && reversePredicate && reverseObject) {
+          const quad = factory.quad(
+            reverseObject as Quad_Subject,
+            reversePredicate as Quad_Predicate,
+            reverseSubject as Quad_Object,
           )
           quads.push(quad)
         }
@@ -124,13 +136,13 @@ export class ResourceFetcher {
         for (let i = 0; i < Math.min(trail.length, depth); i++) {
           const segment = branch.pathSegment[i]
           // Use start/end to determine triple direction
-          let subjectVar = `?node_${i}`
-          let objectVar = `?node_${i + 1}`
+          let subjectVar = `node_${i}`
+          let objectVar = `node_${i + 1}`
           if (segment.start === 'object' && segment.end === 'subject') {
             // Reverse direction
-            ;[subjectVar, objectVar] = [objectVar, subjectVar]
+            ;[subjectVar, objectVar] = ['reverse_' + objectVar, subjectVar]
           }
-          queryParts.push(`${subjectVar} ?predicate_${queryParts.length} ${objectVar}`)
+          queryParts.push(`?${subjectVar} ?predicate_${queryParts.length} ?${objectVar}`)
         }
 
         const patternValues = patternsAndValues.get(queryParts.join(' . ')) || []
@@ -147,10 +159,11 @@ export class ResourceFetcher {
         const valueSets = predicateSets.map((predicateSet) => `(<${this.subject.value}> ${predicateSet.map((predicate) => `<${predicate.value}>`).join(' ')})`)
         const deduplicatedValueSets = [...new Set(valueSets)]
 
-        const showValuesClause = pattern !== '?node_0 ?predicate_0 ?node_1'
+        // For the initial query we do a ?s ?p ?o
+        const initialClause = pattern === '?node_0 ?predicate_0 ?node_1'
 
         return `{ 
-          ${showValuesClause ? `VALUES (?node_0 ${variables.join(' ')}) { ${deduplicatedValueSets.join('\n')} }` : ''}
+          ${initialClause ? `VALUES (?node_0) {(<${this.subject.value}>)}` : `VALUES (?node_0 ${variables.join(' ')}) { ${deduplicatedValueSets.join('\n')} }`}
           ${pattern}
         }`
       }).join('\n UNION \n')
@@ -176,7 +189,7 @@ export class ResourceFetcher {
           new Branch({
             pathSegment: parsePath(propertyPointer.out(sh('path'))),
             propertyPointer,
-            dataPointer: grapoi({ dataset: datasetFactory.dataset(), factory, term: this.subject }),
+            dataPointer: grapoi({ dataset: this.#stepStore, factory, term: this.subject }),
           })
         )
       : []
@@ -193,65 +206,43 @@ export class ResourceFetcher {
 
     const shapeBranches = this.#getShapeBranches()
     this.#branches.push(...shapeBranches)
-
-    console.log(this.#generateQuery(1))
-
-    const initialQuery = `
-		select * WHERE {
-			GRAPH ?g {
-				VALUES (?node_0 ?predicate_1) { (<${this.subject.value}> rdf:type) }
-				?node_0 ?predicate_0 ?node_1 .
-
-			}
-		}`
-    const quads = await this.executeQuery(initialQuery)
+    const quads = await this.executeQuery(this.#generateQuery(1))
+    for (const quad of quads) this.#stepStore.add(quad)
 
     const filteredQuads = quads.filter((quad) => !shapePredicates.some((predicate) => quad.predicate.equals(predicate)))
-
     const uniquePredicates = new TermSet(filteredQuads.map((quad) => quad.predicate))
-    const quadBranches = [...uniquePredicates.values()].map((predicate) =>
-      new Branch({
-        pathSegment: [
-          {
-            predicates: [predicate],
-            start: 'subject' as const,
-            end: 'object' as const,
-            quantifier: 'one' as const,
-          },
-        ],
-        dataPointer: grapoi({ dataset: datasetFactory.dataset(quads.filter((quad) => quad.predicate.equals(predicate))), factory, term: this.subject }),
-      })
-    )
 
-    const temporaryPointer: Grapoi = grapoi({
-      dataset: datasetFactory.dataset(quads),
-      term: this.subject,
-      factory,
+    const quadBranches = [...uniquePredicates.values()].map((predicate) => {
+      const pathSegment = [
+        {
+          predicates: [predicate],
+          start: 'subject' as const,
+          end: 'object' as const,
+          quantifier: 'one' as const,
+        },
+      ]
+
+      return new Branch({
+        pathSegment,
+        dataPointer: grapoi({ dataset: this.#stepStore, factory, term: this.subject }),
+      })
     })
 
     this.#branches.push(...quadBranches)
 
     for (const branch of this.#branches) {
-      this.#processBranch(branch, temporaryPointer)
+      this.#processBranch(branch)
     }
   }
 
-  #processBranch(branch: Branch, temporaryPointer: Grapoi) {
-    const branchPointer = temporaryPointer.executeAll(branch.pathSegment)
-    const branchLeafTerms = branchPointer.terms
-
-    const termTypes = new Set(branchLeafTerms.map((term) => term.termType))
-    if (termTypes.size > 1) {
-      throw new Error('Multiple term types are not supported yet.')
-    }
+  #processBranch(branch: Branch) {
+    const resolvedBranchPointer = branch.dataPointer.executeAll(branch.pathSegment)
+    const branchLeafTerms = resolvedBranchPointer.terms
 
     const emptyBranch = !branchLeafTerms.length
-    const allLiterals = termTypes.has('Literal') && termTypes.size === 1
-    const allBlankNodes = termTypes.has('BlankNode') && termTypes.size === 1
-    const allNamedNodes = termTypes.has('NamedNode') && termTypes.size === 1
 
     const saveQuadsAndProcessBranch = () => {
-      const quads = [...branchPointer.quads()]
+      const quads = [...resolvedBranchPointer.quads()]
       for (const quad of quads) this.#store.add(quad)
       branch.processed = true
     }
@@ -263,9 +254,6 @@ export class ResourceFetcher {
       branch.processed = true
       return
     } // Close a branch if all results are Literals.
-    else if (allLiterals) {
-      return saveQuadsAndProcessBranch()
-    }
 
     // For NamedNodes and Blank Nodes we need to determine if there are shapes that require further fetching.
     // The fact that this property has a shape means we should fetch further.
@@ -284,23 +272,6 @@ export class ResourceFetcher {
         })
 
       branch.children.push(...nestedProperties)
-    } else if (allNamedNodes) {
-      return saveQuadsAndProcessBranch()
-    }
-
-    if (allBlankNodes) {
-      // const quadBranches = [...uniquePredicates.values()].map((predicate) => ({
-      //   pathSegment: [
-      //     {
-      //       predicates: [predicate],
-      //       start: "subject" as const,
-      //       end: "object" as const,
-      //       quantifier: "one" as const,
-      //     },
-      //   ],
-      //   children: [],
-      //   depth: 0,
-      // }));
     }
 
     // If the leaf terms contains any BlankNodes do not save any results
