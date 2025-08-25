@@ -8,5 +8,5 @@ const parser = new Parser()
 const quads = await parser.parse(Shape)
 
 export default {
-    shapesPointer: grapoi({ dataset: datasetFactory.dataset(quads), factory, term: factory.namedNode(`${parser._prefixes['']}PersonShape`) })
-};
+  shapesPointer: grapoi({ dataset: datasetFactory.dataset(quads), factory, term: factory.namedNode(`${parser._prefixes['']}PersonShape`) }),
+}

@@ -1,21 +1,21 @@
-import Grapoi from "../Grapoi.ts";
-import { sh } from "./namespaces.ts";
+import Grapoi from '../Grapoi.ts'
+import { sh } from './namespaces.ts'
 
 export const allShapeProperties = (shapesPointer: Grapoi) => {
-  const originalNodes = shapesPointer.terms;
+  const originalNodes = shapesPointer.terms
 
   const logicalPointers = shapesPointer
-    .out([sh("xone"), sh("and"), sh("or")])
+    .out([sh('xone'), sh('and'), sh('or')])
     /** @ts-ignore */
     .map((pointer: Grapoi) => (pointer.isList() ? [...pointer.list()] : []))
     .flat()
-    .flatMap((pointer) => pointer.terms);
+    .flatMap((pointer) => pointer.terms)
 
-  const nestedPointers = shapesPointer.out(sh("node")).terms;
+  const nestedPointers = shapesPointer.out(sh('node')).terms
 
   const shapeTerms = shapesPointer
     .node([...originalNodes, ...logicalPointers, ...nestedPointers])
-    .out().terms;
+    .out().terms
 
-  return shapesPointer.node(shapeTerms).hasOut(sh("path"));
-};
+  return shapesPointer.node(shapeTerms).hasOut(sh('path'))
+}

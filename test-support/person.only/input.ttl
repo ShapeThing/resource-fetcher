@@ -10,9 +10,9 @@
 @prefix : <https://example.org/> .
 
 :allanDoyle a schema:Person ;
-  # schema:givenName "Allan" ;
+  schema:givenName "Allan" ;
   schema:additionalName "Reign" ;
-  # schema:familyName "Doyle" ;
+  schema:familyName "Doyle" ;
   schema:gender schema:Female ;
   schema:birthDate "1999-05-29"^^<http://www.w3.org/2001/XMLSchema#date> ;
   schema:deathDate "1981-02-25"^^<http://www.w3.org/2001/XMLSchema#date> ;
@@ -39,6 +39,7 @@
 
 :otherAllan a schema:Person ;
   schema:givenName "Allen" ;
+  schema:parentOf :allanDoyle ;
   schema:familyName "Fritsch" ;
   schema:gender schema:Male ;
   schema:birthDate "2000-12-02"^^<http://www.w3.org/2001/XMLSchema#date> ;

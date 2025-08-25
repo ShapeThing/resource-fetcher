@@ -50,7 +50,7 @@
   sh:property [
     sh:name "Ouder"@nl, "Parent"@en ;
     sh:group <#name> ;
-    sh:path [ sh:inversePath schema:parent ] ;
+    sh:path [ sh:inversePath schema:parentOf ] ;
     sh:datatype xsd:string ;
   ];
 

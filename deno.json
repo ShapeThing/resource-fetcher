@@ -2,5 +2,13 @@
   "imports": {
     "@comunica/query-sparql": "npm:@comunica/query-sparql@^4.3.0",
     "@jeswr/pretty-turtle": "npm:@jeswr/pretty-turtle@^1.8.2"
+  },
+  "fmt": {
+    "useTabs": false,
+    "lineWidth": 180,
+    "indentWidth": 2,
+    "semiColons": false,
+    "singleQuote": true,
+    "proseWrap": "never"
   }
 }
