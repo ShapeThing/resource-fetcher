@@ -5,9 +5,11 @@ import datasetFactory from 'npm:@rdfjs/dataset'
 import TermSet from 'npm:@rdfjs/term-set'
 import type { DatasetCore, Quad, Quad_Object, Quad_Predicate, Quad_Subject } from 'npm:@rdfjs/types'
 import grapoi from 'npm:grapoi'
+import { Generator, Parser } from 'npm:sparqljs'
 import type Grapoi from './Grapoi.ts'
 import { allShapeProperties } from './helpers/allShapeProperties.ts'
-import { context, queryPrefixes, sh } from './helpers/namespaces.ts'
+import { cartesian } from './helpers/cartesian.ts'
+import { context, prefixes, queryPrefixes, sh } from './helpers/namespaces.ts'
 import parsePath, { PathSegment } from './helpers/parsePath.ts'
 import { toMermaid } from './helpers/toMermaid.ts'
 
@@ -26,19 +28,15 @@ export class ResourceFetcher {
   #sources: [QuerySourceUnidentified, ...QuerySourceUnidentified[]]
   #shapesPointer?: Grapoi
   #store: DatasetCore = datasetFactory.dataset()
-  #pointer: Grapoi
   #latestQuery: string = ''
+  #debug: boolean
 
   constructor(options: Options) {
     this.subject = options.subject
     this.#engine = options.engine
     this.#sources = options.sources
     this.#shapesPointer = options.shapesPointer
-    this.#pointer = grapoi({
-      dataset: this.#store,
-      factory,
-      term: this.subject,
-    })
+    this.#debug = options.debug || false
   }
 
   get #engineOptions() {
@@ -112,31 +110,18 @@ export class ResourceFetcher {
   }
 
   #generateQuery(depth: number) {
-    // Helper: cartesian product
-    function cartesian(arrays: Quad_Predicate[][]): Quad_Predicate[][] {
-      return arrays.reduce((acc: Quad_Predicate[][], curr: Quad_Predicate[]) => {
-        const res: Quad_Predicate[][] = []
-        acc.forEach((a) => {
-          curr.forEach((b) => {
-            res.push([...a, b])
-          })
-        })
-        return res
-      }, [[]])
-    }
+    const patternsAndValues: Map<string, Quad_Predicate[][]> = new Map()
 
-    const patternsAndValues: Map<string, Quad_Predicate[]> = new Map()
-
-    return this.#branches.map((branch) => {
+    for (const branch of this.#branches) {
       // Get array of arrays of predicates for each segment
       const predicateArrays = branch.pathSegment.map((segment) => segment.predicates)
       // Get all possible trails (cartesian product)
       const trails = cartesian(predicateArrays)
 
-      return trails.map((trail) => {
+      for (const trail of trails) {
         // Build query trail string using start/end from each segment
         const queryParts: string[] = []
-        for (let i = 0; i < trail.length; i++) {
+        for (let i = 0; i < Math.min(trail.length, depth); i++) {
           const segment = branch.pathSegment[i]
           // Use start/end to determine triple direction
           let subjectVar = `?node_${i}`
@@ -148,11 +133,39 @@ export class ResourceFetcher {
           queryParts.push(`${subjectVar} ?predicate_${queryParts.length} ${objectVar}`)
         }
 
-        patternsAndValues.set(queryParts.join(' . '), trail)
+        const patternValues = patternsAndValues.get(queryParts.join(' . ')) || []
+        patternsAndValues.set(queryParts.join(' . '), [...patternValues, trail.slice(0, depth)])
+      }
+    }
 
-        return `(${queryParts.join(' . ')})`
-      }).join('\nUNION\n')
-    }).join('\nUNION\n')
+    const query = `SELECT * WHERE {
+      GRAPH ?g {
+        ${
+      [...patternsAndValues.entries()].map(([pattern, predicateSets]) => {
+        const variables = pattern.split(' ').filter((part) => part.includes('?predicate'))
+
+        const valueSets = predicateSets.map((predicateSet) => `(<${this.subject.value}> ${predicateSet.map((predicate) => `<${predicate.value}>`).join(' ')})`)
+        const deduplicatedValueSets = [...new Set(valueSets)]
+
+        const showValuesClause = pattern !== '?node_0 ?predicate_0 ?node_1'
+
+        return `{ 
+          ${showValuesClause ? `VALUES (?node_0 ${variables.join(' ')}) { ${deduplicatedValueSets.join('\n')} }` : ''}
+          ${pattern}
+        }`
+      }).join('\n UNION \n')
+    }
+      }
+    }`
+
+    if (this.#debug) {
+      const parser = new Parser()
+      const parsedQuery = parser.parse(query)
+      const generator = new Generator({ prefixes })
+      return generator.stringify(parsedQuery)
+    } else {
+      return query
+    }
   }
 
   #getShapeBranches() {
@@ -188,9 +201,7 @@ export class ResourceFetcher {
 			GRAPH ?g {
 				VALUES (?node_0 ?predicate_1) { (<${this.subject.value}> rdf:type) }
 				?node_0 ?predicate_0 ?node_1 .
-				OPTIONAL {
-					?node_1 ?predicate_1 ?node_2 .
-				}
+
 			}
 		}`
     const quads = await this.executeQuery(initialQuery)
