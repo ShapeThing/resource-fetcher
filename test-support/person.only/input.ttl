@@ -14,6 +14,15 @@
   schema:additionalName "Reign" ;
   schema:unknownProp "Woop" ;
   schema:familyName "Doyle" ;
+  schema:knows [
+    a schema:Person ;
+    schema:givenName "Jane" ;
+    schema:familyName "Doe" ;
+  ], [
+    a schema:Person ;
+    schema:givenName "Dirk" ;
+    schema:familyName "Baker" ;
+  ] ;
   schema:gender schema:Female ;
   schema:birthDate "1999-05-29"^^<http://www.w3.org/2001/XMLSchema#date> ;
   schema:deathDate "1981-02-25"^^<http://www.w3.org/2001/XMLSchema#date> ;

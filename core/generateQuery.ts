@@ -9,6 +9,7 @@ export const generateQuery = (subject: Quad_Subject, depth: number, branches: Br
 
   for (const branch of branches) {
     // Get array of arrays of predicates for each segment
+    // TODO we should probably go into the children of a Branch too.
     const predicateArrays = branch.pathSegment.map((segment) => segment.predicates)
     // Get all possible trails (cartesian product)
     const trails = cartesian(predicateArrays)

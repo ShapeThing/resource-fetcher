@@ -6,12 +6,9 @@ import parsePath from '../helpers/parsePath.ts'
 import { OurQuad } from '../ResourceFetcher.ts'
 import { Branch } from './Branch.ts'
 
-export const addDataBranches = (branch: Branch, leafQuads: OurQuad[]) => {
-  if (branch.addedDataBranches) return
-  branch.addedDataBranches = true
-
-  const shapePredicates = branch.propertyPointer
-    ? allShapeProperties(branch.propertyPointer).out(sh('path'))
+export const addDataBranches = (arrayToAppendTo: Branch[], leafQuads: OurQuad[], propertyPointer?: Grapoi, parent?: Branch) => {
+  const shapePredicates = propertyPointer
+    ? allShapeProperties(propertyPointer).out(sh('path'))
       .map((pathPointer: Grapoi) => {
         const path = parsePath(pathPointer)
         const predicates = path.flatMap((segment) => segment.predicates)
@@ -36,13 +33,13 @@ export const addDataBranches = (branch: Branch, leafQuads: OurQuad[]) => {
 
     return {
       pathSegment,
-      depth: branch.depth + 1,
-      parent: branch,
-      resourceFetcher: branch.resourceFetcher,
+      depth: parent ? parent.depth + 1 : 0,
+      parent: parent ?? null,
       children: [],
       type: 'data',
+      // propertyPointer can be added when we have a shape for the particular data via sh:targetClass.
     } satisfies Branch
   })
 
-  branch.children.push(...quadBranches)
+  arrayToAppendTo.push(...quadBranches)
 }

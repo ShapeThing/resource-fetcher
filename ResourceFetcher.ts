@@ -4,10 +4,12 @@ import factory from 'npm:@rdfjs/data-model'
 import datasetFactory from 'npm:@rdfjs/dataset'
 import type { Quad, Quad_Subject } from 'npm:@rdfjs/types'
 import grapoi from 'npm:grapoi'
+import { addDataBranches } from './core/addDataBranches.ts'
 import { createShapeBranches } from './core/addShapeBranches.ts'
 import { Branch } from './core/Branch.ts'
 import { generateQuery } from './core/generateQuery.ts'
 import { numberedBindingsToQuads } from './core/numberedBindingsToQuads.ts'
+import { getBranchParents } from './helpers/getBranchParents.ts'
 import { getLeafBranches } from './helpers/getLeafBranches.ts'
 import type Grapoi from './helpers/Grapoi.ts'
 import { queryPrefixes } from './helpers/namespaces.ts'
@@ -55,9 +57,10 @@ export class ResourceFetcher {
     mermaid: string
     query: string
   }> {
-    this.#branches.push(...createShapeBranches(this.#shapesPointer!, this))
+    if (this.#shapesPointer) this.#branches.push(...createShapeBranches(this.#shapesPointer))
     yield { mermaid: toMermaid(this.subject, this.#branches), query: '' }
     yield await this.#executeStep(1)
+    // yield await this.#executeStep(2)
   }
 
   /**
@@ -78,18 +81,37 @@ export class ResourceFetcher {
   /**
    * One step in the algorithm
    */
-  async #executeStep(step: number): Promise<{ mermaid: string; query: string }> {
+  async #executeStep(depth: number): Promise<{ mermaid: string; query: string }> {
     const dataset = datasetFactory.dataset()
     const dataPointer = grapoi({ dataset, factory, term: this.subject })
 
-    const query = generateQuery(this.subject, step, this.#branches, this.#debug)
+    const query = generateQuery(this.subject, depth, this.#branches, this.#debug)
     const quads = await this.executeQuery(query)
     for (const quad of quads) dataset.add(quad)
 
-    const leafNodes = quads.filter((quad) => quad.isLeaf)
-    for (const leafBranch of getLeafBranches(this.#branches)) {
-      // leafBranch.process(leafNodes)
+    // Add new mainBranches for quads that came from the initial query.
+    if (depth === 1) {
+      addDataBranches(this.#branches, quads.filter((quad) => quad.isLeaf), this.#shapesPointer)
     }
+
+    // Process the branches
+    for (const mainBranch of this.#branches) {
+      const leafBranches = getLeafBranches([mainBranch])
+      for (const leafBranch of leafBranches) {
+        const parents = getBranchParents(leafBranch)
+        const path = parents.map((parent) => parent.pathSegment).flat()
+        const mainBranchQuads = [...dataPointer.executeAll(path).quads()]
+
+        // addDataBranches(leafBranch.children, quads.filter((quad) => quad.isLeaf))
+
+        // console.log(mainBranchQuads)
+      }
+    }
+
+    // const leafNodes = quads.filter((quad) => quad.isLeaf)
+    // for (const leafBranch of getLeafBranches(this.#branches)) {
+    //   const
+    // }
 
     return {
       mermaid: toMermaid(this.subject, this.#branches, dataPointer),

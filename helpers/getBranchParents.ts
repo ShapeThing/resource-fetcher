@@ -5,6 +5,7 @@ export const getBranchParents = (branch: Branch) => {
   let current: Branch = branch
   while (current) {
     parents.push(current)
+    if (current.parent === null) break
     current = current.parent
   }
   return parents.reverse()
