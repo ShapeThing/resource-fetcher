@@ -16,6 +16,7 @@
     "npm:@rdfjs/namespace@*": "2.0.1",
     "npm:@rdfjs/term-set@*": "2.0.3",
     "npm:@rdfjs/types@*": "2.0.1",
+    "npm:@types/node@*": "24.2.0",
     "npm:grapoi@*": "1.1.3",
     "npm:jsonld-context-parser@*": "3.0.0",
     "npm:n3@*": "1.26.0",

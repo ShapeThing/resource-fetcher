@@ -43,7 +43,7 @@
   sh:property [
     sh:name "Ouder Voornaam"@nl, "Parent Given name"@en ;
     sh:group <#name> ;
-    sh:path (schema:parent [ sh:alternativePath ( schema:givenName schema:name ) ]) ;
+    sh:path ([ sh:inversePath schema:parentOf ] [ sh:alternativePath ( schema:givenName schema:name ) ]) ;
     sh:datatype xsd:string ;
   ];
 

@@ -1,4 +1,4 @@
-import Grapoi from '../Grapoi.ts'
+import Grapoi from './Grapoi.ts'
 import { sh } from './namespaces.ts'
 
 export const allShapeProperties = (shapesPointer: Grapoi) => {
