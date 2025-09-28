@@ -1,14 +1,14 @@
-import type { StepResults } from "../../lib/ResourceFetcher"
+import type { MaterializedStepResults } from "../App"
 
 type Props = {
-    step: StepResults
+    step: MaterializedStepResults
 }
 
 export default function Step({ step }: Props) {
     return (
         <div>
             <pre>{step.query}</pre>
-            <pre>{step.dataset.toString()}</pre>
+            <pre>{step.turtle}</pre>
         </div>
     )
 }

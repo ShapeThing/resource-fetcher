@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@comunica/query-sparql": "^4.4.1",
+    "@jeswr/pretty-turtle": "^1.8.2",
     "@uidotdev/usehooks": "^2.4.1",
     "rdf-data-factory": "^2.0.2",
     "rdf-stores": "^2.1.1",
