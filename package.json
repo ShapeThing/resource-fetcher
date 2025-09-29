@@ -15,11 +15,20 @@
     "@comunica/query-sparql": "^4.4.1",
     "@fontsource-variable/roboto": "^5.2.8",
     "@jeswr/pretty-turtle": "^1.8.2",
+    "@rdfjs/data-model": "^2.1.1",
+    "@rdfjs/environment": "^1.0.0",
+    "@rdfjs/namespace": "^2.0.1",
+    "@rdfjs/term-set": "^2.0.3",
+    "@types/rdfjs__data-model": "^2.0.9",
+    "@types/rdfjs__environment": "^1.0.0",
+    "@types/rdfjs__namespace": "^2.0.10",
+    "@types/rdfjs__term-set": "^2.0.9",
     "@uidotdev/usehooks": "^2.4.1",
     "rdf-data-factory": "^2.0.2",
     "rdf-stores": "^2.1.1",
     "react": "^19.1.1",
-    "react-dom": "^19.1.1"
+    "react-dom": "^19.1.1",
+    "sparqljs": "^3.7.3"
   },
   "devDependencies": {
     "@eslint/js": "^9.36.0",

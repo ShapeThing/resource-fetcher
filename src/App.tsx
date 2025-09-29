@@ -176,13 +176,15 @@ export default function App() {
           return (
             <Fragment key={runIndex}>
               {run.steps.length ? (
-                <h2 key={runIndex}>
+                <div key={runIndex + '-' + runIndex} className="accordion-item">
+                <h2 className="accordion-header" key={runIndex}>
                   {run.done && '✓'} {run.name}
                 </h2>
+                </div>
               ) : null}
               {run.steps.map((step, stepIndex) => (
                 <div key={runIndex + '-' + stepIndex} className="accordion-item">
-                  <h2 className="accordion-header">Step {stepIndex + 1}</h2>
+                  <h2 className="accordion-header step">Step {stepIndex + 1}</h2>
                   <Step step={step} />
                 </div>
               ))}

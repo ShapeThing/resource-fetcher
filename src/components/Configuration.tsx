@@ -13,7 +13,7 @@ export default function Configuration({ configuration, setConfiguration }: Props
     <div>
       {/* Subject */}
       <div className="field">
-        <label>Subject</label>
+        <label className='label'>Subject</label>
         <div>
           <input
             type="url"
@@ -26,7 +26,7 @@ export default function Configuration({ configuration, setConfiguration }: Props
       </div>
       {/* Shapes */}
       <div className="field">
-        <label>Shapes <em>(optional)</em></label>
+        <label className='label'>Shapes <em>(optional)</em></label>
         <div className="radio-item">
           <label>
             <input
@@ -93,7 +93,7 @@ export default function Configuration({ configuration, setConfiguration }: Props
       </div>
       {/* Sources */}
       <div className="field">
-        <label>Source</label>
+        <label className='label'>Source</label>
         <div className="radio-item">
           <label>
             <input

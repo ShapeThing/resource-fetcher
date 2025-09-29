@@ -1,8 +1,9 @@
 import { RdfStore } from 'rdf-stores'
 import { QueryEngine } from '@comunica/query-sparql'
-import type { NamedNode } from '@rdfjs/types'
+import type { NamedNode, Quad } from '@rdfjs/types'
 
-export type SourceType = { type: 'sparql'; value: string } | { type: 'file'; value: string, filename?: string }
+export type SourceType = { type: 'sparql'; value: string } | { type: 'file'; value: string; filename?: string }
+export type OurQuad = Quad & { isLeaf?: boolean; isReverse?: boolean }
 
 export type Options = {
   subject: NamedNode
@@ -23,7 +24,7 @@ export class ResourceFetcher {
 
     yield {
       dataset: RdfStore.createDefault(),
-      query: 'SELECT * WHERE { ?s ?p ?o }'
+      query: 'SELECT * WHERE { ?s ?p ?o1 }'
     }
 
     yield {
@@ -36,4 +37,11 @@ export class ResourceFetcher {
 export type StepResults = {
   dataset: RdfStore
   query: string
+}
+
+// For local development so that tests always run after changes.
+if (import.meta.hot) {
+  import.meta.hot.accept(() => {
+    window.location.reload()
+  })
 }
