@@ -1,5 +1,26 @@
+body {
+    font-family: 'Roboto Variable', sans-serif;
+}
 input[type="file"] {
     width: 70px;
     overflow: hidden;
     margin-right: .5rem;
+}
+
+.accordion-header {
+    margin: 0;
+    display: flex;
+    gap: 1rem;
+
+    label {
+        cursor: pointer;
+
+        input {
+            margin-right: .5rem;
+        }
+    }
+}
+
+.accordion-item {
+    padding: .5rem;
 }

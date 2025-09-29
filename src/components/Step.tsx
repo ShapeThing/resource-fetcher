@@ -1,7 +1,7 @@
-import type { MaterializedStepResults } from "../App"
+import type { Run } from "../App"
 
 type Props = {
-    step: MaterializedStepResults
+    step: Run['steps'][number]
 }
 
 export default function Step({ step }: Props) {
