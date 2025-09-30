@@ -185,8 +185,8 @@ export default function App() {
                     {status === 'successful' ? '✓' : status === 'failed' ? '✗' : null} {run.name}
                   </summary>
                   {run.steps.map((step, stepIndex) => (
-                    <div key={runIndex + '-' + stepIndex} className="accordion-item">
-                      <h5 className="accordion-header step">Step {stepIndex + 1}</h5>
+                    <div key={runIndex + '-' + stepIndex} className="">
+                      <h5 className="step-title">Step {stepIndex + 1}</h5>
                       <Step step={step} />
                     </div>
                   ))}

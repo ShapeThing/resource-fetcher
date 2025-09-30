@@ -6,9 +6,11 @@ type Props = {
 
 export default function Step({ step }: Props) {
     return (
-        <div>
-            <pre>{step.query}</pre>
-            <pre>{step.turtle}</pre>
+        <div className="step">
+            <h3>Query</h3>
+            <pre className="query">{step.query}</pre>
+            <h3>Results</h3>
+            <pre className="results">{step.turtle}</pre>
         </div>
     )
 }

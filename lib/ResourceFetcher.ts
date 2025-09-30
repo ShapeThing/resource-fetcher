@@ -9,6 +9,11 @@ import type { Branch } from './core/Branch'
 import { createShapeBranches } from './core/addShapeBranches'
 import { numberedBindingsToQuads } from './core/numberedBindingsToQuads'
 import { queryPrefixes, rdf, sh } from './helpers/namespaces'
+import { addDataBranches } from './core/addDataBranches'
+import { getLeafBranches } from './helpers/getLeafBranches'
+import { allShapeProperties } from './helpers/allShapeProperties'
+import parsePath from './helpers/parsePath'
+import TermSet from '@rdfjs/term-set'
 const factory = new DataFactory()
 
 export type SourceType =
@@ -39,6 +44,7 @@ export class ResourceFetcher {
   #shapesPointer?: Grapoi
   #shapesStore: DatasetCore<OurQuad> = datasetFactory.dataset()
   #branches: Branch[] = []
+  #flatBranches: Branch[] = []
 
   constructor(options: Options) {
     this.#options = options
@@ -76,30 +82,107 @@ export class ResourceFetcher {
 
   async *execute(): AsyncGenerator<StepResults> {
     await this.#processOptions()
-
+    yield await this.executeStep(1)
+    // After we have fetched the initial ?s ?p ?o we can determine the classes of the subject.
     if (this.#shapesPointer) this.#branches.push(...createShapeBranches(this.#shapesPointer))
 
-    // console.log(this.#branches)
-
-    yield await this.executeStep(1)
+    // TODO execute until no new triples are found.
+    yield await this.executeStep(2)
+    yield await this.executeStep(3)
+    yield await this.executeStep(4)
+    yield await this.executeStep(5)
   }
 
   async executeStep(depth: number) {
-    const dataset = datasetFactory.dataset()
     const query = generateQuery(this.#options.subject, depth, this.#branches, this.#options.debug)
-    const quads = await this.executeQuery(query)
-    for (const quad of quads) dataset.add(quad)
+    const results = await this.executeQuery(query)
 
-    const classes = [...quads.match(this.#options.subject, rdf('type'))].map(quad => quad.object)
-
+    // Try to set the shape pointer if we have classes and no shape pointer yet.
+    const classes = [...results.match(this.#options.subject, rdf('type'))].map(quad => quad.object)
     if (classes.length && !this.#shapesPointer && this.#options.shapes) {
       this.#shapesPointer = grapoi({ dataset: this.#shapesStore, factory })
         .hasOut(rdf('type'), sh('NodeShape'))
         .hasOut(sh('targetClass'), classes)
     }
 
-    // const dataPointer = grapoi({ dataset, factory, term: this.#options.subject })
-    return { query, dataset }
+    const dataPointer = grapoi({ dataset: results, factory, term: this.#options.subject })
+
+    if (depth === 1) {
+      this.#addDataBranches(
+        { children: this.#branches, pathSegment: [], depth: 0 } as unknown as Branch,
+        depth,
+        dataPointer,
+        this.#shapesPointer
+      )
+    } else {
+      const leafBranches = this.#flatBranches.filter(branch => branch.depth === depth - 1)
+      for (const leafBranch of leafBranches) {
+        this.#addDataBranches(leafBranch, depth, dataPointer, this.#shapesPointer)
+      }
+    }
+
+    return { query, dataset: results }
+  }
+
+  #addDataBranches(parent: Branch, depth: number, dataPointer: Grapoi, propertyPointer?: Grapoi) {
+    const parentsPathSegments = []
+    let currentParent: Branch | null = parent
+    while (currentParent) {
+      parentsPathSegments.unshift(...currentParent.pathSegment)
+      currentParent = currentParent.parent
+    }
+
+    const cappedPathSegments = parentsPathSegments.slice(0, depth)
+    const pointer = dataPointer.executeAll(cappedPathSegments)
+    const leafQuads = [...pointer.distinct().out().quads()] as OurQuad[]
+
+    const shapePredicates = propertyPointer
+      ? allShapeProperties(propertyPointer)
+          .out(sh('path'))
+          .map((pathPointer: Grapoi) => {
+            const path = parsePath(pathPointer)
+            const predicates = path.flatMap(segment => segment.predicates)
+            return predicates
+          })
+          .flat()
+      : []
+
+    // TODO this last part gets more complex in deeper depths.
+    const filteredQuads = leafQuads.filter(quad => !shapePredicates.some(predicate => quad.predicate.equals(predicate)))
+
+    const uniquePredicates = new TermSet(filteredQuads.map(quad => quad.predicate))
+
+    const quadBranches = [...uniquePredicates.values()].map(predicate => {
+      const pathSegment = [
+        {
+          predicates: [predicate],
+          start: 'subject' as const,
+          end: 'object' as const,
+          quantifier: 'one' as const
+        }
+      ]
+
+      const quads = filteredQuads.filter(quad => quad.predicate.equals(predicate))
+      const types = quads.filter(quad => quad.predicate.equals(rdf('type'))).map(quad => quad.object)
+      const pathPropertyPointer =
+        propertyPointer && types.length
+          ? propertyPointer.node().hasOut(rdf('type'), sh('NodeShape')).hasOut(sh('targetClass'), types)
+          : undefined
+
+      return {
+        pathSegment,
+        depth: parent.depth + 1,
+        parent,
+        children: [],
+        type: 'data',
+        propertyPointer: pathPropertyPointer
+      } satisfies Branch
+    })
+
+    // Also add it always to our flat index.
+    this.#flatBranches.push(...quadBranches)
+    // And add it to the actual tree.
+    parent.children.push(...quadBranches)
   }
 
   /**

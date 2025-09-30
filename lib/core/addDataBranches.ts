@@ -1,12 +1,23 @@
 import TermSet from '@rdfjs/term-set'
 import { allShapeProperties } from '../helpers/allShapeProperties.ts'
-import Grapoi from '../helpers/Grapoi.ts'
+import type { Grapoi } from '../helpers/Grapoi.ts'
 import { rdf, sh } from '../helpers/namespaces.ts'
 import parsePath from '../helpers/parsePath.ts'
 import type { OurQuad } from '../ResourceFetcher.ts'
 import type { Branch } from './Branch.ts'
 
-export const addDataBranches = (arrayToAppendTo: Branch[], leafQuads: OurQuad[], propertyPointer?: Grapoi, parent?: Branch) => {
+export const addDataBranches = (parent: Branch, depth: number, dataPointer: Grapoi, propertyPointer?: Grapoi) => {
+  const parentsPathSegments = []
+  let currentParent: Branch | null = parent
+  while (currentParent) {
+    parentsPathSegments.unshift(...currentParent.pathSegment)
+    currentParent = currentParent.parent
+  }
+
+  const cappedPathSegments = parentsPathSegments.slice(0, depth)
+  const pointer = dataPointer.executeAll(cappedPathSegments)
+  const leafQuads = [...pointer.out().quads()] as OurQuad[]
+
   const shapePredicates = propertyPointer
     ? allShapeProperties(propertyPointer).out(sh('path'))
       .map((pathPointer: Grapoi) => {
@@ -45,5 +56,5 @@ export const addDataBranches = (arrayToAppendTo: Branch[], leafQuads: OurQuad[],
     } satisfies Branch
   })
 
-  arrayToAppendTo.push(...quadBranches)
+  parent.children.push(...quadBranches)
 }

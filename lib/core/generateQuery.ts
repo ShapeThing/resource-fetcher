@@ -2,25 +2,59 @@ import type { Quad_Predicate, Quad_Subject } from '@rdfjs/types'
 import { Generator, Parser } from 'sparqljs'
 import { cartesian } from '../helpers/cartesian.ts'
 import { prefixes } from '../helpers/namespaces.ts'
+import { getLeafBranches } from '../helpers/getLeafBranches.ts'
 import type { Branch } from './Branch.ts'
 
-export const generateQuery = (subject: Quad_Subject, depth: number, branches: Branch[], debug: boolean = true): string => {
+export const generateQuery = (
+  subject: Quad_Subject,
+  depth: number,
+  branches: Branch[],
+  debug: boolean = true
+): string => {
   const patternsAndValues: Map<string, Quad_Predicate[][]> = new Map()
 
-  for (const branch of branches) {
-    if (branch.processed) continue
+  // Helper function to build trail from root to a specific branch
+  const buildTrailToBranch = (branch: Branch): Quad_Predicate[][] => {
+    const pathSegments: typeof branch.pathSegment = []
+    let currentBranch: Branch | null = branch
 
-    // Get array of arrays of predicates for each segment
-    // TODO we should probably go into the children of a Branch too.
-    const predicateArrays = branch.pathSegment.map((segment) => segment.predicates)
+    // Walk up to root, collecting path segments
+    while (currentBranch) {
+      pathSegments.unshift(...currentBranch.pathSegment)
+      currentBranch = currentBranch.parent
+    }
+
+    // Convert path segments to predicate arrays
+    const predicateArrays = pathSegments.map(segment => segment.predicates)
+
     // Get all possible trails (cartesian product)
-    const trails = cartesian(predicateArrays)
+    return cartesian(predicateArrays)
+  }
+
+  // Get all leaf branches and process their complete trails
+  const leafBranches = getLeafBranches(branches)
+  const processedBranches = new Set<Branch>()
+
+  for (const leafBranch of leafBranches) {
+    if (leafBranch.processed || processedBranches.has(leafBranch)) continue
+
+    const trails = buildTrailToBranch(leafBranch)
+    processedBranches.add(leafBranch)
 
     for (const trail of trails) {
-      // Build query trail string using start/end from each segment
+      // Build query trail string using segments from the complete path
       const queryParts: string[] = []
+
+      // Rebuild the path segments from the leaf branch to get start/end info
+      const pathSegments: typeof leafBranch.pathSegment = []
+      let currentBranch: Branch | null = leafBranch
+      while (currentBranch) {
+        pathSegments.unshift(...currentBranch.pathSegment)
+        currentBranch = currentBranch.parent
+      }
+
       for (let i = 0; i < Math.min(trail.length, depth); i++) {
-        const segment = branch.pathSegment[i]
+        const segment = pathSegments[i]
         // Use start/end to determine triple direction
         let subjectVar = `node_${i}`
         let objectVar = `node_${i + 1}`
@@ -38,23 +72,32 @@ export const generateQuery = (subject: Quad_Subject, depth: number, branches: Br
 
   const query = `SELECT * WHERE {
       GRAPH ?g {
-      ${branches.length === 0 ? `
+      ${
+        branches.length === 0
+          ? `
         VALUES (?node_0) { (<${subject.value}>) }
         ?node_0 ?predicate_0 ?node_1 .
-      ` : ''}
-        ${
-    [...patternsAndValues.entries()].map(([pattern, predicateSets]) => {
-      const variables = pattern.split(' ').filter((part) => part.includes('?predicate'))
+      `
+          : ''
+      }
+        ${[...patternsAndValues.entries()]
+          .map(([pattern, predicateSets]) => {
+            const lastNodeIndex = parseInt(pattern.split(' ').pop()!.substring(6))
 
-      const valueSets = predicateSets.map((predicateSet) => `(<${subject.value}> ${predicateSet.map((predicate) => `<${predicate.value}>`).join(' ')})`)
-      const deduplicatedValueSets = [...new Set(valueSets)]
+            const variables = pattern.split(' ').filter(part => part.includes('?predicate'))
 
-      return `{
+            const valueSets = predicateSets.map(
+              predicateSet => `(<${subject.value}> ${predicateSet.map(predicate => `<${predicate.value}>`).join(' ')})`
+            )
+            const deduplicatedValueSets = [...new Set(valueSets)]
+
+            return `{
           VALUES (?node_0 ${variables.join(' ')}) { ${deduplicatedValueSets.join('\n')} }
-          ${pattern}
+          ${pattern} .
+          ?node_${lastNodeIndex} ?predicate_${variables.length} ?node_${lastNodeIndex + 1} .
         }`
-    }).join('\n UNION \n')
-  }
+          })
+          .join('\n UNION \n')}
       }
     }`
 
