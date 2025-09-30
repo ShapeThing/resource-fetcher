@@ -86,14 +86,19 @@ export class ResourceFetcher {
     // After we have fetched the initial ?s ?p ?o we can determine the classes of the subject.
     if (this.#shapesPointer) this.#branches.push(...createShapeBranches(this.#shapesPointer))
 
-    // TODO execute until no new triples are found.
-    yield await this.executeStep(2)
-    yield await this.executeStep(3)
-    yield await this.executeStep(4)
-    yield await this.executeStep(5)
+    const getCurrentDepth = () =>
+      this.#flatBranches.reduce((max, branch) => (branch.depth > max ? branch.depth : max), 0)
+
+    let processedDepth = 1
+    while (processedDepth <= getCurrentDepth()) {
+      const nextDepth = processedDepth + 1
+      yield await this.executeStep(nextDepth)
+      processedDepth = nextDepth
+    }
   }
 
   async executeStep(depth: number) {
+    console.log({ depth})
     const query = generateQuery(this.#options.subject, depth, this.#branches, this.#options.debug)
     const results = await this.executeQuery(query)
 
@@ -149,6 +154,8 @@ export class ResourceFetcher {
 
     // TODO this last part gets more complex in deeper depths.
     const filteredQuads = leafQuads.filter(quad => !shapePredicates.some(predicate => quad.predicate.equals(predicate)))
+
+    // console.log(filteredQuads)
 
     const uniquePredicates = new TermSet(filteredQuads.map(quad => quad.predicate))
 
