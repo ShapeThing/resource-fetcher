@@ -9,8 +9,6 @@ import type { Branch } from './core/Branch'
 import { createShapeBranches } from './core/addShapeBranches'
 import { numberedBindingsToQuads } from './core/numberedBindingsToQuads'
 import { queryPrefixes, rdf, sh } from './helpers/namespaces'
-import { addDataBranches } from './core/addDataBranches'
-import { getLeafBranches } from './helpers/getLeafBranches'
 import { allShapeProperties } from './helpers/allShapeProperties'
 import parsePath from './helpers/parsePath'
 import TermSet from '@rdfjs/term-set'
@@ -98,7 +96,6 @@ export class ResourceFetcher {
   }
 
   async executeStep(depth: number) {
-    console.log({ depth})
     const query = generateQuery(this.#options.subject, depth, this.#branches, this.#options.debug)
     const results = await this.executeQuery(query)
 
@@ -141,6 +138,8 @@ export class ResourceFetcher {
     const pointer = dataPointer.executeAll(cappedPathSegments)
     const leafQuads = [...pointer.distinct().out().quads()] as OurQuad[]
 
+    console.log(leafQuads)
+
     const shapePredicates = propertyPointer
       ? allShapeProperties(propertyPointer)
           .out(sh('path'))
@@ -152,11 +151,7 @@ export class ResourceFetcher {
           .flat()
       : []
 
-    // TODO this last part gets more complex in deeper depths.
     const filteredQuads = leafQuads.filter(quad => !shapePredicates.some(predicate => quad.predicate.equals(predicate)))
-
-    // console.log(filteredQuads)
-
     const uniquePredicates = new TermSet(filteredQuads.map(quad => quad.predicate))
 
     const quadBranches = [...uniquePredicates.values()].map(predicate => {
