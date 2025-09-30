@@ -1,5 +1,5 @@
 import { allShapeProperties } from '../helpers/allShapeProperties.ts'
-import Grapoi from '../helpers/Grapoi.ts'
+import type { Grapoi } from '../helpers/Grapoi.ts'
 import { sh } from '../helpers/namespaces.ts'
 import parsePath from '../helpers/parsePath.ts'
 import type { Branch } from './Branch.ts'

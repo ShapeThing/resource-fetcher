@@ -5,7 +5,7 @@ import { ResourceFetcher, type Options, type SourceType, type StepResults } from
 import { QueryEngine } from '@comunica/query-sparql'
 import { DataFactory } from 'rdf-data-factory'
 import { write } from '@jeswr/pretty-turtle'
-import tests from './tests'
+import tests from '../test/tests'
 import { useLocalStorage } from '@uidotdev/usehooks'
 
 const df = new DataFactory()
@@ -13,13 +13,14 @@ const df = new DataFactory()
 type SerializedOptions = {
   subject: string
   sources: SourceType[]
-  shapes?: SourceType[]
+  shapes?: SourceType
 }
 
 export type Run = {
   name: string
   done?: true
   steps: (StepResults & { turtle: string })[]
+  conforms?: boolean
 }
 
 let initHasRun = false
@@ -37,7 +38,7 @@ export default function App() {
         ? df.namedNode(savedConfiguration.subject)
         : df.namedNode('http://example.org/resource'),
     sources: savedConfiguration && savedConfiguration.sources ? savedConfiguration.sources : [],
-    shapes: savedConfiguration && savedConfiguration.shapes ? savedConfiguration.shapes : [],
+    shapes: savedConfiguration && savedConfiguration.shapes ? savedConfiguration.shapes : undefined,
     engine: new QueryEngine()
   }
 
@@ -71,7 +72,7 @@ export default function App() {
       fetcher,
       iterator: fetcher.execute()
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [configuration, runType])
 
   const runAllTests = async () => {
@@ -87,12 +88,13 @@ export default function App() {
       const iterator = fetcher.execute()
       let result = await iterator.next()
       while (!result.done) {
-        const turtle = await write(result.value.dataset.getQuads())
+        const step = result.value
+        const turtle = await write([...step.dataset])
         setRuns(runs => {
           const newRuns = [...runs]
           newRuns[newRuns.length - 1] = {
             ...newRuns[newRuns.length - 1],
-            steps: [...newRuns[newRuns.length - 1].steps, { ...result.value, turtle }]
+            steps: [...newRuns[newRuns.length - 1].steps, { ...step, turtle }]
           }
           return newRuns
         })
@@ -109,9 +111,9 @@ export default function App() {
   const nextStep = () => {
     iterator.next().then(async result => {
       if (!result.done) {
-        const turtle = await write(result.value.dataset.getQuads())
+        const turtle = await write([...result.value.dataset])
         setRuns(runs => {
-          const newRuns = [...runs]
+          const newRuns = [...(runs.length ? runs : EMPTY_RUNS)]
           newRuns[newRuns.length - 1] = {
             ...newRuns[newRuns.length - 1],
             steps: [...newRuns[newRuns.length - 1].steps, { ...result.value, turtle }]
@@ -173,21 +175,23 @@ export default function App() {
           )}
         </div>
         {runs.map((run, runIndex) => {
+          const status = run.done && 'conforms' in run ? (run.conforms ? 'successful' : 'failed') : ''
+
           return (
             <Fragment key={runIndex}>
               {run.steps.length ? (
-                <div key={runIndex + '-' + runIndex} className="accordion-item">
-                <h2 className="accordion-header" key={runIndex}>
-                  {run.done && '✓'} {run.name}
-                </h2>
-                </div>
+                <details open key={runIndex + '-' + runIndex} className={`accordion-item status-${status || 'unknown'}`}>
+                  <summary className="accordion-header" key={runIndex}>
+                    {status === 'successful' ? '✓' : status === 'failed' ? '✗' : null} {run.name}
+                  </summary>
+                  {run.steps.map((step, stepIndex) => (
+                    <div key={runIndex + '-' + stepIndex} className="accordion-item">
+                      <h5 className="accordion-header step">Step {stepIndex + 1}</h5>
+                      <Step step={step} />
+                    </div>
+                  ))}
+                </details>
               ) : null}
-              {run.steps.map((step, stepIndex) => (
-                <div key={runIndex + '-' + stepIndex} className="accordion-item">
-                  <h2 className="accordion-header step">Step {stepIndex + 1}</h2>
-                  <Step step={step} />
-                </div>
-              ))}
             </Fragment>
           )
         })}

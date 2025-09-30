@@ -1,0 +1,14 @@
+@prefix ex: <https://example.org/> .
+
+ex:thing
+    ex:foo (
+        [
+            ex:bar "baz" ;
+            ex:qux "quux" ;
+            ex:empty []
+        ]
+        [
+    ex:bar "baz1" ;
+    ex:qux "quux2"
+  ]
+    ) .

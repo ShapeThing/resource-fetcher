@@ -1,9 +1,10 @@
 import factory from '@rdfjs/data-model'
-import type { Bindings, Quad_Object, Quad_Predicate, Quad_Subject } from '@rdfjs/types'
+import type { Bindings, DatasetCore, Quad_Object, Quad_Predicate, Quad_Subject } from '@rdfjs/types'
 import type { OurQuad } from '../ResourceFetcher.ts'
+import datasetFactory from '@rdfjs/dataset'
 
-export const numberedBindingsToQuads = (bindings: Bindings[]): OurQuad[] => {
-  const quads: OurQuad[] = []
+export const numberedBindingsToQuads = (bindings: Bindings[]): DatasetCore<OurQuad> => {
+  const store = datasetFactory.dataset<OurQuad>()
   const keys: Set<string> = new Set()
 
   for (const binding of bindings) {
@@ -32,7 +33,7 @@ export const numberedBindingsToQuads = (bindings: Bindings[]): OurQuad[] => {
         )
         // We never reach the highestNode as that is only for the last object.
         if (depth === highestNode - 1) quad.isLeaf = true
-        quads.push(quad)
+        store.add(quad)
       }
 
       // If there is no object but there is a reverse object the relationship is a reverse.
@@ -44,10 +45,10 @@ export const numberedBindingsToQuads = (bindings: Bindings[]): OurQuad[] => {
         )
         if (depth === highestNode - 1) quad.isLeaf = true
         quad.isReverse = true
-        quads.push(quad)
+        store.add(quad)
       }
     }
   }
 
-  return quads
+  return store
 }

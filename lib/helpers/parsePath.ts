@@ -4,7 +4,7 @@
  */
 import namespace from '@rdfjs/namespace'
 import type { NamedNode, Quad_Predicate } from '@rdfjs/types'
-import type Grapoi from './Grapoi.ts'
+import type { Grapoi } from './Grapoi.ts'
 import { nonNullable } from './nonNullable.ts'
 
 const owl = namespace('http://www.w3.org/2002/07/owl#')

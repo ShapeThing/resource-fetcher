@@ -38,6 +38,10 @@ export const generateQuery = (subject: Quad_Subject, depth: number, branches: Br
 
   const query = `SELECT * WHERE {
       GRAPH ?g {
+      ${branches.length === 0 ? `
+        VALUES (?node_0) { (<${subject.value}>) }
+        ?node_0 ?predicate_0 ?node_1 .
+      ` : ''}
         ${
     [...patternsAndValues.entries()].map(([pattern, predicateSets]) => {
       const variables = pattern.split(' ').filter((part) => part.includes('?predicate'))
@@ -45,11 +49,8 @@ export const generateQuery = (subject: Quad_Subject, depth: number, branches: Br
       const valueSets = predicateSets.map((predicateSet) => `(<${subject.value}> ${predicateSet.map((predicate) => `<${predicate.value}>`).join(' ')})`)
       const deduplicatedValueSets = [...new Set(valueSets)]
 
-      // For the initial query we do a ?s ?p ?o
-      const initialClause = pattern === '?node_0 ?predicate_0 ?node_1' && depth === 1
-
       return `{
-          ${initialClause ? `VALUES (?node_0) {(<${subject.value}>)}` : `VALUES (?node_0 ${variables.join(' ')}) { ${deduplicatedValueSets.join('\n')} }`}
+          VALUES (?node_0 ${variables.join(' ')}) { ${deduplicatedValueSets.join('\n')} }
           ${pattern}
         }`
     }).join('\n UNION \n')

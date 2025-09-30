@@ -4,6 +4,7 @@ import type Environment from '@rdfjs/environment'
 import type { DatasetCore, Quad, Term } from '@rdfjs/types'
 
 export default Grapoi
+export type { Grapoi }
 /**
  * A graph pointer object
  * @extends PathList
@@ -320,9 +321,9 @@ declare class PathList {
   isList(): boolean
   /**
    * Create an iterator for the list if the instance is a list; otherwise, return undefined.
-   * @returns {Iterator<Constructor>|undefined} Iterator or undefined
+   * @returns {Iterator<Grapoi>|undefined} Iterator or undefined
    */
-  list(): Iterator<this> | undefined
+  list(): Iterable<Grapoi> | undefined
   /**
    * Map each pointer using the given callback function.
    * @param callback
@@ -352,9 +353,4 @@ declare class PathList {
    * @returns {Constructor} Instance of the trimmed pointers
    */
   trim(): this
-  /**
-   * Iterator for each pointer wrapped into a new instance.
-   * @returns {Iterator<this>}} Iterator for the wrapped pointers
-   */
-  [Symbol.iterator](): Iterator<this>
 }
