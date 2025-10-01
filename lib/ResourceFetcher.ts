@@ -93,9 +93,12 @@ export class ResourceFetcher {
       yield await this.executeStep(nextDepth)
       processedDepth = nextDepth
     }
+
+    // console.log(this.#branches)
   }
 
   async executeStep(depth: number) {
+    // console.log(`Executing step for depth ${depth}`)
     const query = generateQuery(this.#options.subject, depth, this.#branches, this.#options.debug)
     const results = await this.executeQuery(query)
 
@@ -112,33 +115,57 @@ export class ResourceFetcher {
     if (depth === 1) {
       this.#addDataBranches(
         { children: this.#branches, pathSegment: [], depth: 0 } as unknown as Branch,
-        depth,
         dataPointer,
         this.#shapesPointer
       )
     } else {
-      const leafBranches = this.#flatBranches.filter(branch => branch.depth === depth - 1)
-      for (const leafBranch of leafBranches) {
-        this.#addDataBranches(leafBranch, depth, dataPointer, this.#shapesPointer)
+      // Add new leaf branches for quads just received.
+      const unprocessedLeafBranches = this.#flatBranches.filter(
+        branch => branch.depth === depth - 1 && !branch.processed
+      )
+      for (const leafBranch of unprocessedLeafBranches) {
+        this.#addDataBranches(leafBranch, dataPointer, this.#shapesPointer)
+      }
+
+      // Process branches at current depth.
+      const currentBranches = this.#flatBranches.filter(branch => branch.depth === depth - 2 && !branch.processed)
+      for (const branch of currentBranches) {
+        const branchDataPointer = this.#getDataPointerOfBranch(branch, dataPointer)
+        const branchQuads = [...branchDataPointer.quads()] as OurQuad[]
+        if (branchQuads.length === 0) {
+          branch.processed = true
+          continue
+        }
+
+        // Possibly more quads ahead
+        if (branchQuads.some(quad => quad.object.termType === 'BlankNode' || quad.object.termType === 'NamedNode')) {
+          // TODO
+        }
+
+        if (branchQuads.every(quad => quad.object.termType === 'Literal')) {
+          branch.processed = true
+        }
       }
     }
 
     return { query, dataset: results }
   }
 
-  #addDataBranches(parent: Branch, depth: number, dataPointer: Grapoi, propertyPointer?: Grapoi) {
+  #getDataPointerOfBranch(branch: Branch, dataPointer: Grapoi): Grapoi {
     const parentsPathSegments = []
-    let currentParent: Branch | null = parent
+    let currentParent: Branch | null = branch
     while (currentParent) {
       parentsPathSegments.unshift(...currentParent.pathSegment)
       currentParent = currentParent.parent
     }
 
-    const cappedPathSegments = parentsPathSegments.slice(0, depth)
-    const pointer = dataPointer.executeAll(cappedPathSegments)
-    const leafQuads = [...pointer.distinct().out().quads()] as OurQuad[]
+    const cappedPathSegments = parentsPathSegments.slice(0, branch.depth)
+    return dataPointer.executeAll(cappedPathSegments)
+  }
 
-    console.log(leafQuads)
+  #addDataBranches(parent: Branch, dataPointer: Grapoi, propertyPointer?: Grapoi) {
+    const branchDataPointer = this.#getDataPointerOfBranch(parent, dataPointer)
+    const leafQuads = [...branchDataPointer.distinct().out().quads()] as OurQuad[]
 
     const shapePredicates = propertyPointer
       ? allShapeProperties(propertyPointer)

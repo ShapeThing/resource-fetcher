@@ -82,7 +82,7 @@ export const generateQuery = (
       }
         ${[...patternsAndValues.entries()]
           .map(([pattern, predicateSets]) => {
-            const lastNodeIndex = parseInt(pattern.split(' ').pop()!.substring(6))
+            const lastNodeIndex = Math.max(...pattern.split(' ').map(part => parseInt(part.split('_').pop()!)))
 
             const variables = pattern.split(' ').filter(part => part.includes('?predicate'))
 
