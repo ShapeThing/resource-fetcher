@@ -6,7 +6,6 @@ import { DataFactory } from 'rdf-data-factory'
 import type Grapoi from './helpers/Grapoi'
 import { generateQuery } from './core/generateQuery'
 import type { Branch } from './core/Branch'
-import { createShapeBranches } from './core/addShapeBranches'
 import { numberedBindingsToQuads } from './core/numberedBindingsToQuads'
 import { queryPrefixes, rdf, sh } from './helpers/namespaces'
 import { allShapeProperties } from './helpers/allShapeProperties'
@@ -83,17 +82,8 @@ export class ResourceFetcher {
     // After we have fetched the initial ?s ?p ?o we can determine the classes of the subject.
     if (this.#shapesPointer) {
       const properties = this.#shapesPointer ? allShapeProperties(this.#shapesPointer).hasOut(sh('path')) : []
-      const shapeBranches: Branch[] = properties.map((propertyPointer: Grapoi) => ({
-        pathSegment: parsePath(propertyPointer.out(sh('path'))),
-        propertyPointer,
-        depth: 1,
-        children: [],
-        parent: null,
-        type: 'shape'
-      }))
-      for (const branch of shapeBranches) {
-        this.#addBranch(branch)
-      }
+      const shapeBranches = properties.map((propertyPointer: Grapoi) => this.#shapeBranchFromPointer(propertyPointer))
+      for (const branch of shapeBranches) this.#addBranch(branch)
     }
 
     const getCurrentDepth = () => this.#branches.reduce((max, branch) => (branch.depth > max ? branch.depth : max), 0)
@@ -106,7 +96,22 @@ export class ResourceFetcher {
     }
   }
 
+  #shapeBranchFromPointer(propertyPointer: Grapoi, parent?: Branch) {
+    const path = parsePath(propertyPointer.out(sh('path')))
+    return {
+      pathSegment: path,
+      propertyPointer,
+      parent: parent ?? null,
+      depth: (parent?.depth ?? 0) + 1,
+      children: [],
+      type: 'shape'
+    } satisfies Branch
+  }
+
   #addBranch(branch: Branch) {
+    const pathSegmentString = JSON.stringify(branch.pathSegment)
+    const exists = this.#branches.find(b => JSON.stringify(b.pathSegment) === pathSegmentString)
+    if (exists) return
     this.#branches.push(branch)
   }
 
@@ -133,10 +138,10 @@ export class ResourceFetcher {
       )
       // If the shape pointer previously has been set create shape branches.
       if (this.#shapesPointer) {
-        const shapeBranches = createShapeBranches(this.#shapesPointer)
-        for (const branch of shapeBranches) {
-          this.#addBranch(branch)
-        }
+        const properties = this.#shapesPointer ? allShapeProperties(this.#shapesPointer).hasOut(sh('path')) : []
+
+        const shapeBranches = properties.map((propertyPointer: Grapoi) => this.#shapeBranchFromPointer(propertyPointer))
+        for (const branch of shapeBranches) this.#addBranch(branch)
       }
 
       this.#processBranches(depth, dataPointer)
@@ -264,24 +269,6 @@ export class ResourceFetcher {
       this.#addBranch(branch)
     }
   }
-
-  // #addShapeBranches () {
-  // const properties = propertyPointer
-  //   ? allShapeProperties(propertyPointer)
-  //     .hasOut(sh('path'))
-  //   : []
-
-  // return properties
-  //   .map((propertyPointer: Grapoi) => ({
-  //     pathSegment: parsePath(propertyPointer.out(sh('path'))),
-  //     propertyPointer,
-  //     parent: parent ?? null,
-  //     depth: 0,
-  //     children: [],
-  //     type: 'shape',
-  //   } satisfies Branch))
-
-  // }
 
   /**
    * Execute a query and parses the bindings to Quads.
