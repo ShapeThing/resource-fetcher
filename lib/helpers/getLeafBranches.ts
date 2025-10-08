@@ -7,7 +7,7 @@ export const getLeafBranches = (branches: Branch[]): Branch[] => {
   const leafBranches: Branch[] = []
 
   const collectLeafBranches = (branch: Branch) => {
-    if (branch.children.length === 0) {
+    if (branch.children.length === 0 && !branch.processed) {
       leafBranches.push(branch)
     } else {
       for (const child of branch.children) {

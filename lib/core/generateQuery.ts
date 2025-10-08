@@ -1,9 +1,10 @@
 import type { Quad_Predicate, Quad_Subject } from '@rdfjs/types'
 import { Generator, Parser } from 'sparqljs'
-import { cartesian } from '../helpers/cartesian.ts'
 import { prefixes } from '../helpers/namespaces.ts'
 import { getLeafBranches } from '../helpers/getLeafBranches.ts'
 import type { Branch } from './Branch.ts'
+import { buildTrailToBranch } from '../helpers/buildTrailToBranch.ts'
+
 
 export const generateQuery = (
   subject: Quad_Subject,
@@ -12,24 +13,6 @@ export const generateQuery = (
   debug: boolean = true
 ): string => {
   const patternsAndValues: Map<string, Quad_Predicate[][]> = new Map()
-
-  // Helper function to build trail from root to a specific branch
-  const buildTrailToBranch = (branch: Branch): Quad_Predicate[][] => {
-    const pathSegments: typeof branch.pathSegment = []
-    let currentBranch: Branch | null = branch
-
-    // Walk up to root, collecting path segments
-    while (currentBranch) {
-      pathSegments.unshift(...currentBranch.pathSegment)
-      currentBranch = currentBranch.parent
-    }
-
-    // Convert path segments to predicate arrays
-    const predicateArrays = pathSegments.map(segment => segment.predicates)
-
-    // Get all possible trails (cartesian product)
-    return cartesian(predicateArrays)
-  }
 
   // Get all leaf branches and process their complete trails
   const leafBranches = getLeafBranches(branches)
@@ -73,7 +56,7 @@ export const generateQuery = (
   const query = `SELECT * WHERE {
       GRAPH ?g {
       ${
-        branches.length === 0
+        leafBranches.length === 0
           ? `
         VALUES (?node_0) { (<${subject.value}>) }
         ?node_0 ?predicate_0 ?node_1 .
@@ -82,8 +65,7 @@ export const generateQuery = (
       }
         ${[...patternsAndValues.entries()]
           .map(([pattern, predicateSets]) => {
-            const lastNodeIndex = Math.max(...pattern.split(' ').map(part => parseInt(part.split('_').pop()!)))
-
+            const lastNodeIndex = Math.max(...pattern.split(' ').map(part => parseInt(part.split('_').pop()!)).filter(Number.isInteger))
             const variables = pattern.split(' ').filter(part => part.includes('?predicate'))
 
             const valueSets = predicateSets.map(

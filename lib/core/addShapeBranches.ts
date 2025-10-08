@@ -22,7 +22,7 @@ export const createShapeBranches = (propertyPointer: Grapoi, parent?: Branch) =>
       pathSegment: parsePath(propertyPointer.out(sh('path'))),
       propertyPointer,
       parent: parent ?? null,
-      depth: 0,
+      depth: (parent?.depth ?? 0) + 1,
       children: [],
       type: 'shape',
     } satisfies Branch))

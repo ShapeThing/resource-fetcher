@@ -1,16 +1,24 @@
-import type { Run } from "../App"
+import type { Run } from '../App'
 
 type Props = {
-    step: Run['steps'][number]
+  step: Run['steps'][number]
 }
 
 export default function Step({ step }: Props) {
-    return (
-        <div className="step">
-            <h3>Query</h3>
-            <pre className="query">{step.query}</pre>
-            <h3>Results</h3>
-            <pre className="results">{step.turtle}</pre>
-        </div>
-    )
+  return (
+    <div className="step">
+      <details open>
+        <summary>Query</summary>
+        <pre className="query">{step.query}</pre>
+      </details>
+      <details open>
+        <summary>Results</summary>
+        <pre className="results">{step.turtle}</pre>
+      </details>
+      <details>
+        <summary>Branches</summary>
+        <pre className="branches">{JSON.stringify(step.branches, null, 2)}</pre>
+      </details>
+    </div>
+  )
 }
