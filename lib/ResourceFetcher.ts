@@ -7,7 +7,7 @@ import type Grapoi from './helpers/Grapoi'
 import { generateQuery } from './core/generateQuery'
 import type { Branch } from './core/Branch'
 import { numberedBindingsToQuads } from './core/numberedBindingsToQuads'
-import { queryPrefixes, rdf, sh } from './helpers/namespaces'
+import { queryPrefixes, rdf, schema, sh } from './helpers/namespaces'
 import { allShapeProperties } from './helpers/allShapeProperties'
 import parsePath, { type PathSegment } from './helpers/parsePath'
 import TermSet from '@rdfjs/term-set'
@@ -109,8 +109,11 @@ export class ResourceFetcher {
   }
 
   #addBranch(branch: Branch) {
+    // TODO remove this trail. It is only for development purposes.
+    if (![schema('knows'), rdf('type'), schema('familyName'), schema('givenName')].some(p => p.equals(branch.pathSegment[0].predicates[0]))) return
+
     const pathSegmentString = JSON.stringify(branch.pathSegment)
-    const exists = this.#branches.find(b => JSON.stringify(b.pathSegment) === pathSegmentString)
+    const exists = this.#branches.find(b => JSON.stringify(b.pathSegment) === pathSegmentString && b.depth === branch.depth)
     if (exists) return
     this.#branches.push(branch)
   }
@@ -149,7 +152,7 @@ export class ResourceFetcher {
       // Add new leaf branches for quads just received.
       const unprocessedLeafBranches = this.#branches.filter(branch => branch.depth === depth - 1 && !branch.processed)
       for (const leafBranch of unprocessedLeafBranches) {
-        this.#addDataBranches(leafBranch, dataPointer, this.#shapesPointer)
+        this.#addDataBranches(leafBranch, dataPointer, leafBranch.propertyPointer)
       }
 
       this.#processBranches(depth - 1, dataPointer)
@@ -182,28 +185,29 @@ export class ResourceFetcher {
   }
 
   #processBranches(depth: number, dataPointer: Grapoi) {
+    console.log(`Processing branches at depth ${depth}`)
     // Process branches at current depth.
-    const currentBranches = this.#branches.filter(branch => branch.depth === depth).filter(branch => !branch.processed)
+    const currentBranches = this.#branches.filter(branch => branch.depth === depth && !branch.processed)
     for (const branch of currentBranches) {
       const branchDataPointer = this.#getDataPointerOfBranch(branch, dataPointer)
       const branchQuads = [...branchDataPointer.quads()] as OurQuad[]
 
       if (branchQuads.length === 0) {
         branch.processed = true
-        console.log(branchQuads[0]?.predicate?.value, 'processed')
+        console.log(branchQuads[0]?.predicate?.value, branch.depth, 'processed')
         continue
       } else if (branchQuads.every(quad => quad.object.termType === 'Literal')) {
         branch.processed = true
         branch.quads = branchQuads
-        console.log(branchQuads[0]?.predicate?.value, 'processed')
+        console.log(branchQuads[0]?.predicate?.value, branch.depth, 'processed')
       }
 
       // Possibly more quads ahead
       else if (branchQuads.some(quad => quad.object.termType === 'BlankNode' || quad.object.termType === 'NamedNode')) {
         // TODO
-        console.log(branchQuads[0].predicate.value, 'skipped')
+        console.log(branchQuads[0].predicate.value, branch.depth, 'skipped')
       } else {
-        console.log(branchQuads[0].predicate.value, 'skipped')
+        console.log(branchQuads[0].predicate.value, branch.depth, 'skipped')
       }
     }
   }
@@ -221,6 +225,7 @@ export class ResourceFetcher {
   }
 
   #addDataBranches(parent: Branch, dataPointer: Grapoi, propertyPointer?: Grapoi) {
+    console.log(`Adding data branches for parent at depth ${parent.depth}`)
     const branchDataPointer = this.#getDataPointerOfBranch(parent, dataPointer)
     const leafQuads = [...branchDataPointer.distinct().out().quads()] as OurQuad[]
 
