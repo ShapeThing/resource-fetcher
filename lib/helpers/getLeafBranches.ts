@@ -2,6 +2,7 @@ import type { Branch } from '../core/Branch.ts'
 
 /**
  * Get all leaf branches (branches that have no children)
+ * TODO change to use Branch.depth
  */
 export const getLeafBranches = (branches: Branch[]): Branch[] => {
   const leafBranches: Branch[] = []
