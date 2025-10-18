@@ -73,14 +73,14 @@
     sh:datatype xsd:string ;
   ];
 
-  # sh:property [
-  #   sh:name "Geslacht"@nl, "Gender"@en ;
-  #   sh:group <#general> ;
-  #   sh:in ( schema:Male schema:Female ) ;
-  #   sh:maxCount 1;
-  #   sh:minCount 1;
-  #   sh:path schema:gender ;
-  # ];
+  sh:property [
+    sh:name "Geslacht"@nl, "Gender"@en ;
+    sh:group <#general> ;
+    sh:in ( schema:Male schema:Female ) ;
+    sh:maxCount 1;
+    sh:minCount 1;
+    sh:path schema:gender ;
+  ];
   
   # sh:property [
   #   sh:name "Foto"@nl, "Photo"@en ;

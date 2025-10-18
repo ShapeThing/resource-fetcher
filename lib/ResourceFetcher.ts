@@ -7,7 +7,7 @@ import type Grapoi from './helpers/Grapoi'
 import { generateQuery } from './core/generateQuery'
 import type { Branch } from './core/Branch'
 import { numberedBindingsToQuads } from './core/numberedBindingsToQuads'
-import { queryPrefixes, rdf, sh } from './helpers/namespaces'
+import { queryPrefixes, rdf, schema, sh } from './helpers/namespaces'
 import { allShapeProperties } from './helpers/allShapeProperties'
 import parsePath, { type PathSegment } from './helpers/parsePath'
 import TermSet from '@rdfjs/term-set'
@@ -82,8 +82,15 @@ export class ResourceFetcher {
     // After we have fetched the initial ?s ?p ?o we can determine the classes of the subject.
     if (this.#shapesPointer) {
       const properties = this.#shapesPointer ? allShapeProperties(this.#shapesPointer).hasOut(sh('path')) : []
-      const shapeBranches = properties.map((propertyPointer: Grapoi) => this.#shapeBranchFromPointer(propertyPointer))
-      for (const branch of shapeBranches) this.#addBranch(branch)
+      const shapeBranches: Branch[] = properties.map((propertyPointer: Grapoi) =>
+        this.#shapeBranchFromPointer(propertyPointer)
+      )
+      for (const branch of shapeBranches) {
+        if (branch.pathSegment[0].predicates[0].equals(schema('gender'))) {
+          console.log('here')
+        }
+        this.#addBranch(branch)
+      }
     }
 
     const getCurrentDepth = () => this.#branches.reduce((max, branch) => (branch.depth > max ? branch.depth : max), 0)
@@ -96,7 +103,7 @@ export class ResourceFetcher {
     }
   }
 
-  #shapeBranchFromPointer(propertyPointer: Grapoi, parent?: Branch) {
+  #shapeBranchFromPointer(propertyPointer: Grapoi, parent?: Branch): Branch {
     const path = parsePath(propertyPointer.out(sh('path')))
     return {
       pathSegment: path,
@@ -189,22 +196,18 @@ export class ResourceFetcher {
       const branchDataPointer = this.#getDataPointerOfBranch(branch, dataPointer)
       const branchQuads = [...branchDataPointer.quads()] as OurQuad[]
 
-      if (branchQuads.length === 0) {
-        branch.processed = true
-        // console.log(branchQuads[0]?.predicate?.value, branch.depth, 'processed')
-        continue
-      } else if (branchQuads.every(quad => quad.object.termType === 'Literal')) {
+      const processedBecauseEmpty = branchQuads.length === 0
+      const processedBecauseLiterals = branchQuads.every(quad => quad.object.termType === 'Literal')
+
+      const branchIsDeadEnd =
+        // No blank nodes to follow,
+        branchQuads.every(quad => quad.object.termType !== 'BlankNode') &&
+        // and no shape properties to follow.
+        (!branch.propertyPointer || allShapeProperties(branch.propertyPointer).ptrs.length === 0)
+
+      if (processedBecauseEmpty || processedBecauseLiterals || branchIsDeadEnd) {
         branch.processed = true
         branch.quads = branchQuads
-        // console.log(branchQuads[0]?.predicate?.value, branch.depth, 'processed')
-      }
-
-      // Possibly more quads ahead
-      else if (branchQuads.some(quad => quad.object.termType === 'BlankNode' || quad.object.termType === 'NamedNode')) {
-        // TODO
-        // console.log(branchQuads[0].predicate.value, branch.depth, 'skipped')
-      } else {
-        // console.log(branchQuads[0].predicate.value, branch.depth, 'skipped')
       }
     }
   }
@@ -230,7 +233,10 @@ export class ResourceFetcher {
           .out(sh('path'))
           .map((pathPointer: Grapoi) => {
             const path = parsePath(pathPointer)
-            const predicates = path.flat().slice(0, parent.depth + 1).flatMap(segment => segment.predicates)
+            const predicates = path
+              .flat()
+              .slice(0, parent.depth + 1)
+              .flatMap(segment => segment.predicates)
             return predicates
           })
           .flat()
