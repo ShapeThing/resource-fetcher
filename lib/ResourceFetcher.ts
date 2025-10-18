@@ -7,7 +7,7 @@ import type Grapoi from './helpers/Grapoi'
 import { generateQuery } from './core/generateQuery'
 import type { Branch } from './core/Branch'
 import { numberedBindingsToQuads } from './core/numberedBindingsToQuads'
-import { context, queryPrefixes, rdf, sh } from './helpers/namespaces'
+import { context, queryPrefixes, rdf, schema, sh } from './helpers/namespaces'
 import { allShapeProperties } from './helpers/allShapeProperties'
 import parsePath, { type PathSegment } from './helpers/parsePath'
 import TermSet from '@rdfjs/term-set'
@@ -197,7 +197,6 @@ export class ResourceFetcher {
 
       const processedBecauseEmpty = branchQuads.length === 0
       const processedBecauseLiterals = branchQuads.every(quad => quad.object.termType === 'Literal')
-
       const branchIsDeadEnd =
         // No blank nodes to follow,
         branchQuads.every(quad => quad.object.termType !== 'BlankNode') &&
@@ -205,8 +204,27 @@ export class ResourceFetcher {
         (!branch.propertyPointer || allShapeProperties(branch.propertyPointer).ptrs.length === 0)
 
       if (processedBecauseEmpty || processedBecauseLiterals || branchIsDeadEnd) {
-        branch.processed = depth
         branch.quads = branchQuads
+        branch.processed = depth
+
+        let parent = branch.parent
+        while (parent) {
+          const allChildrenProcessed = parent.children.every(child => child.processed)
+          if (allChildrenProcessed && (!parent.processed)) {
+            parent.processed = depth
+            if (parent.pathSegment[0].predicates[0].equals(schema('address'))) {
+              console.log(depth, parent)
+            }
+            const branchDataPointer = this.#getDataPointerOfBranch(parent, dataPointer)
+            const parentQuads = [...branchDataPointer.quads()] as OurQuad[]
+            parent.quads = parentQuads
+          }
+          parent = parent.parent
+        }
+      }
+      else {
+        // console.log(branchQuads)
+        // console.log(branch.pathSegment[0].predicates[0].value)
       }
     }
   }
@@ -292,6 +310,7 @@ export class ResourceFetcher {
 export type DebugBranch = {
     pathSegment: string
     depth: number
+    type: 'shape' | 'data'
     processed: number
     quads: string[][]
     children: DebugBranch[]

@@ -64,11 +64,12 @@ input[type="file"] {
 }
 
 .branch {
+    margin-top: 1rem;
     margin-bottom: 1rem;
 }
 
 .term {
-    margin-inline: .5rem;
+    margin-right: .5rem;
 }
 
 .processed {
@@ -81,6 +82,7 @@ input[type="file"] {
 
 .branch-quads {
     color: rgb(66, 66, 66);
+    padding-left: 1.8rem;
 }
 
 .branch-children {
@@ -90,4 +92,11 @@ input[type="file"] {
 
 .previously-processed.no-children {
     display: none;
+}
+.branch-type-shape {
+    color: rgb(0, 114, 15);
+}
+
+.branch-type-data {
+    color: rgb(0, 123, 255);
 }

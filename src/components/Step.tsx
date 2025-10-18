@@ -9,7 +9,7 @@ type Props = {
 const trimPrefixes = (turtle: string) => {
   return turtle
     .split('\n')
-    .map(line => line.startsWith('@prefix') ? '' : line)
+    .map(line => (line.startsWith('@prefix') ? '' : line))
     .filter(line => line.trim() !== '')
     .join('\n')
 }
@@ -29,7 +29,7 @@ export default function Step({ step, depth }: Props) {
         <summary>Branches</summary>
         <div className="branches">
           {step.branches.map(branch => (
-            <Branch key={JSON.stringify(branch)} {...branch} depth={depth} />
+            <Branch key={JSON.stringify(branch)} branch={branch} depth={depth} />
           ))}
         </div>
       </details>
@@ -37,13 +37,16 @@ export default function Step({ step, depth }: Props) {
   )
 }
 
-function Branch(branch: DebugBranch & { depth: number }) {
+function Branch({ branch, depth }: { branch: DebugBranch; depth: number }) {
   return (
-    <div key={JSON.stringify(branch)} className={`branch depth-${branch.depth} ${branch.processed < branch.depth ? 'previously-processed' : ''} ${branch.children && branch.children.length ? 'has-children' : 'no-children'}`}>
-      <span className="processed">
-        {branch.processed ? '✅' : '⏳'}
-      </span>
-      <span className="path-segment">{branch.pathSegment}</span>
+    <div
+      key={JSON.stringify(branch)}
+      data-processed={branch.processed}
+      className={`branch depth-${depth} ${branch.processed < depth ? 'previously-processed' : ''} ${branch.children && branch.children.length ? 'has-children' : 'no-children'}`}
+    >
+      <span className="processed">{branch.processed ? '✔️' : '⏳'}</span>
+      <span className="path-segment">{branch.pathSegment}</span>&nbsp;
+      <em className={`branch-type branch-type-${branch.type}`}>{branch.type}</em>
       {branch.quads ? (
         <div className="branch-quads">
           {branch.quads?.map(quad => (
@@ -57,8 +60,13 @@ function Branch(branch: DebugBranch & { depth: number }) {
           ))}
         </div>
       ) : null}
-
-      {branch.children ? <div className="branch-children">{branch.children.map(child => <Branch key={JSON.stringify(child)} {...child} />)}</div> : null}
+      {branch.children ? (
+        <div className="branch-children">
+          {branch.children.map(child => (
+            <Branch key={JSON.stringify(child)} branch={child} depth={depth + 1} />
+          ))}
+        </div>
+      ) : null}
     </div>
   )
 }
