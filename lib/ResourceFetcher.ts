@@ -7,7 +7,7 @@ import type Grapoi from './helpers/Grapoi'
 import { generateQuery } from './core/generateQuery'
 import type { Branch } from './core/Branch'
 import { numberedBindingsToQuads } from './core/numberedBindingsToQuads'
-import { queryPrefixes, rdf, schema, sh } from './helpers/namespaces'
+import { context, queryPrefixes, rdf, sh } from './helpers/namespaces'
 import { allShapeProperties } from './helpers/allShapeProperties'
 import parsePath, { type PathSegment } from './helpers/parsePath'
 import TermSet from '@rdfjs/term-set'
@@ -79,18 +79,13 @@ export class ResourceFetcher {
   async *execute(): AsyncGenerator<StepResults> {
     await this.#processOptions()
     yield await this.executeStep(1)
-    // After we have fetched the initial ?s ?p ?o we can determine the classes of the subject.
+    // After we have fetched the initial ?s ?p ?o, we can determine the classes of the subject.
     if (this.#shapesPointer) {
       const properties = this.#shapesPointer ? allShapeProperties(this.#shapesPointer).hasOut(sh('path')) : []
       const shapeBranches: Branch[] = properties.map((propertyPointer: Grapoi) =>
         this.#shapeBranchFromPointer(propertyPointer)
       )
-      for (const branch of shapeBranches) {
-        if (branch.pathSegment[0].predicates[0].equals(schema('gender'))) {
-          console.log('here')
-        }
-        this.#addBranch(branch)
-      }
+      for (const branch of shapeBranches) this.#addBranch(branch)
     }
 
     const getCurrentDepth = () => this.#branches.reduce((max, branch) => (branch.depth > max ? branch.depth : max), 0)
@@ -169,10 +164,10 @@ export class ResourceFetcher {
         if (key === 'propertyPointer') return undefined
         if (key === 'children' && value.length === 0) return undefined
         if (key === 'quads') {
-          return value?.map((quad: OurQuad) => [quad.subject.value, quad.predicate.value, quad.object.value])
+          return value?.map((quad: OurQuad) => [context.compactIri(quad.subject.value), context.compactIri(quad.predicate.value), context.compactIri(quad.object.value)])
         }
         if (key === 'pathSegment') {
-          return (value as PathSegment).map(segment => segment.predicates.map(p => p.value).join(' | ')).join(' / ')
+          return (value as PathSegment).map(segment => segment.predicates.map(p => context.compactIri(p.value)).join(' | ')).join(' / ')
         }
         return value
       })
@@ -206,7 +201,7 @@ export class ResourceFetcher {
         (!branch.propertyPointer || allShapeProperties(branch.propertyPointer).ptrs.length === 0)
 
       if (processedBecauseEmpty || processedBecauseLiterals || branchIsDeadEnd) {
-        branch.processed = true
+        branch.processed = depth
         branch.quads = branchQuads
       }
     }
@@ -293,7 +288,12 @@ export class ResourceFetcher {
 export type StepResults = {
   dataset: DatasetCore<OurQuad>
   query: string
-  branches: object
+  branches: {
+    pathSegment: string
+    depth: number
+    processed: number
+    quads: string[][]
+  }[]
 }
 
 // For local development so that tests always run after changes.

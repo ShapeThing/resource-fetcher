@@ -187,7 +187,7 @@ export default function App() {
                   {run.steps.map((step, stepIndex) => (
                     <div key={runIndex + '-' + stepIndex} className="">
                       <h5 className="step-title">Step {stepIndex + 1}</h5>
-                      <Step step={step} />
+                      <Step key={`${runIndex}-${stepIndex}`} step={step} depth={stepIndex + 1} />
                     </div>
                   ))}
                 </details>

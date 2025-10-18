@@ -32,7 +32,7 @@ export const rdf: NamespaceBuilder<string> = namespace(
 )
 
 /** example.com namespace */
-export const ex: NamespaceBuilder<string> = namespace('http://example.com/')
+export const ex: NamespaceBuilder<string> = namespace('https://example.org/')
 
 /** SHACL namespace */
 export const sh: NamespaceBuilder<string> = namespace(

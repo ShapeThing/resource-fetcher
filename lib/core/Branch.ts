@@ -8,7 +8,7 @@ export type Branch = {
   depth: number
   type: 'shape' | 'data'
   parent: Branch | null
-  processed?: boolean
+  processed?: number
   quads?: OurQuad[]
   propertyPointer?: Grapoi
   addedShapeBranches?: boolean
