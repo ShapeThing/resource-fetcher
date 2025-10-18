@@ -81,7 +81,7 @@ export class ResourceFetcher {
     yield await this.executeStep(1)
     // After we have fetched the initial ?s ?p ?o, we can determine the classes of the subject.
     if (this.#shapesPointer) {
-      const properties = this.#shapesPointer ? allShapeProperties(this.#shapesPointer).hasOut(sh('path')) : []
+      const properties = this.#shapesPointer.out(sh('property')).hasOut(sh('path'))
       const shapeBranches: Branch[] = properties.map((propertyPointer: Grapoi) =>
         this.#shapeBranchFromPointer(propertyPointer)
       )
@@ -145,7 +145,7 @@ export class ResourceFetcher {
       )
       // If the shape pointer previously has been set create shape branches.
       if (this.#shapesPointer) {
-        const properties = this.#shapesPointer ? allShapeProperties(this.#shapesPointer).hasOut(sh('path')) : []
+        const properties = this.#shapesPointer.out(sh('property')).hasOut(sh('path'))
 
         const shapeBranches = properties.map((propertyPointer: Grapoi) => this.#shapeBranchFromPointer(propertyPointer))
         for (const branch of shapeBranches) this.#addBranch(branch)
@@ -157,9 +157,23 @@ export class ResourceFetcher {
       const unprocessedLeafBranches = this.#branches.filter(branch => branch.depth === depth - 1 && !branch.processed)
       for (const leafBranch of unprocessedLeafBranches) {
         this.#addDataBranches(leafBranch, dataPointer, leafBranch.propertyPointer)
+
+        // If this branch has a propertyPointer with sh:node, create shape branches for the nested node shape
+        if (leafBranch.propertyPointer) {
+          const nodeShape = leafBranch.propertyPointer.out(sh('node'))
+          if (nodeShape.terms.length > 0) {
+            const nestedProperties = nodeShape.out(sh('property')).hasOut(sh('path'))
+            nestedProperties.map((propertyPointer: Grapoi) => {
+              const nestedBranch = this.#shapeBranchFromPointer(propertyPointer, leafBranch)
+              this.#addBranch(nestedBranch)
+            })
+          }
+        }
       }
 
       this.#processBranches(depth - 1, dataPointer)
+      // Also process the newly created branches at the current depth
+      this.#processBranches(depth, dataPointer)
     }
 
     const branches = JSON.parse(
@@ -203,7 +217,24 @@ export class ResourceFetcher {
         // and no shape properties to follow.
         (!branch.propertyPointer || allShapeProperties(branch.propertyPointer).ptrs.length === 0)
 
-      if (processedBecauseEmpty || processedBecauseLiterals || branchIsDeadEnd) {
+      // For shape branches, check if all nested properties have been created as branches
+      const shapePropertiesCreated = branch.type === 'shape' && branch.propertyPointer &&
+        branchQuads.length > 0 && // Has data
+        (() => {
+          const nodeShape = branch.propertyPointer.out(sh('node'))
+          if (nodeShape.terms.length === 0) return true // No nested shape
+          const nestedProperties = nodeShape.out(sh('property')).hasOut(sh('path'))
+          // Check if branches exist for all nested properties
+          const nestedPaths = nestedProperties.map((prop: Grapoi) => parsePath(prop.out(sh('path'))))
+          return nestedPaths.every((propPath: any) => {
+            return this.#branches.some(b =>
+              b.depth === branch.depth + 1 &&
+              b.pathSegment[0]?.predicates.some((p: any) => propPath[0]?.predicates.some((pp: any) => p.equals(pp)))
+            )
+          })
+        })()
+
+      if (processedBecauseEmpty || processedBecauseLiterals || branchIsDeadEnd || shapePropertiesCreated) {
         branch.quads = branchQuads
         branch.processed = depth
 
@@ -290,7 +321,15 @@ export class ResourceFetcher {
     })
 
     for (const branch of quadBranches) {
-      this.#addBranch(branch)
+      // Only add if a shape branch doesn't already exist for this predicate
+      const shapeBranchExists = this.#branches.some(
+        b => b.depth === branch.depth &&
+             b.type === 'shape' &&
+             b.pathSegment[0]?.predicates.some(p => branch.pathSegment[0]?.predicates.some(bp => p.equals(bp)))
+      )
+      if (!shapeBranchExists) {
+        this.#addBranch(branch)
+      }
     }
   }
 
