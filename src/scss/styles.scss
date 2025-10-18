@@ -82,3 +82,12 @@ input[type="file"] {
 .branch-quads {
     color: rgb(66, 66, 66);
 }
+
+.branch-children {
+    padding-left: 2rem;
+    opacity: 1;
+}
+
+.previously-processed.no-children {
+    display: none;
+}

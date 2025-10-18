@@ -7,6 +7,7 @@ import { DataFactory } from 'rdf-data-factory'
 import { write } from '@jeswr/pretty-turtle'
 import tests from '../test/tests'
 import { useLocalStorage } from '@uidotdev/usehooks'
+import { prefixes } from '../lib/helpers/namespaces'
 
 const df = new DataFactory()
 
@@ -89,7 +90,9 @@ export default function App() {
       let result = await iterator.next()
       while (!result.done) {
         const step = result.value
-        const turtle = await write([...step.dataset])
+        const turtle = await write([...step.dataset], {
+          prefixes
+        })
         setRuns(runs => {
           const newRuns = [...runs]
           newRuns[newRuns.length - 1] = {
@@ -111,7 +114,9 @@ export default function App() {
   const nextStep = () => {
     iterator.next().then(async result => {
       if (!result.done) {
-        const turtle = await write([...result.value.dataset])
+        const turtle = await write([...result.value.dataset], {
+          prefixes
+        })
         setRuns(runs => {
           const newRuns = [...(runs.length ? runs : EMPTY_RUNS)]
           newRuns[newRuns.length - 1] = {
@@ -180,7 +185,11 @@ export default function App() {
           return (
             <Fragment key={runIndex}>
               {run.steps.length ? (
-                <details open key={runIndex + '-' + runIndex} className={`accordion-item status-${status || 'unknown'}`}>
+                <details
+                  open
+                  key={runIndex + '-' + runIndex}
+                  className={`accordion-item status-${status || 'unknown'}`}
+                >
                   <summary className="accordion-header" key={runIndex}>
                     {status === 'successful' ? '✓' : status === 'failed' ? '✗' : null} {run.name}
                   </summary>

@@ -116,6 +116,10 @@ export class ResourceFetcher {
       b => JSON.stringify(b.pathSegment) === pathSegmentString && b.depth === branch.depth
     )
     if (exists) return
+
+    if (this.#branches !== branch.parent?.children) {
+      branch.parent?.children.push(branch)
+    }
     this.#branches.push(branch)
   }
 
@@ -159,7 +163,7 @@ export class ResourceFetcher {
     }
 
     const branches = JSON.parse(
-      JSON.stringify(this.#branches, (key, value) => {
+      JSON.stringify(this.#branches.filter(branch => branch.depth === 1), (key, value) => {
         if (key === 'parent') return undefined
         if (key === 'propertyPointer') return undefined
         if (key === 'children' && value.length === 0) return undefined
@@ -285,15 +289,18 @@ export class ResourceFetcher {
   }
 }
 
-export type StepResults = {
-  dataset: DatasetCore<OurQuad>
-  query: string
-  branches: {
+export type DebugBranch = {
     pathSegment: string
     depth: number
     processed: number
     quads: string[][]
-  }[]
+    children: DebugBranch[]
+}
+
+export type StepResults = {
+  dataset: DatasetCore<OurQuad>
+  query: string
+  branches: DebugBranch[]
 }
 
 // For local development so that tests always run after changes.
