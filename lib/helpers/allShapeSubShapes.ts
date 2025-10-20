@@ -1,7 +1,7 @@
 import type { Grapoi } from './Grapoi.ts'
 import { sh } from './namespaces.ts'
 
-export const allShapeProperties = (shapesPointer: Grapoi) => {
+export const allShapeSubShapes = (shapesPointer: Grapoi) => {
   const originalNodes = shapesPointer.terms
 
   const logicalPointers = shapesPointer

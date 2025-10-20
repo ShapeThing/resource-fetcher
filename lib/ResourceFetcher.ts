@@ -7,8 +7,8 @@ import type Grapoi from './helpers/Grapoi'
 import { generateQuery } from './core/generateQuery'
 import type { Branch } from './core/Branch'
 import { numberedBindingsToQuads } from './core/numberedBindingsToQuads'
-import { context, queryPrefixes, rdf, schema, sh } from './helpers/namespaces'
-import { allShapeProperties } from './helpers/allShapeProperties'
+import { context, queryPrefixes, rdf, sh } from './helpers/namespaces'
+import { allShapeSubShapes } from './helpers/allShapeSubShapes'
 import parsePath, { type PathSegment } from './helpers/parsePath'
 import TermSet from '@rdfjs/term-set'
 const factory = new DataFactory()
@@ -81,7 +81,7 @@ export class ResourceFetcher {
     yield await this.executeStep(1)
     // After we have fetched the initial ?s ?p ?o, we can determine the classes of the subject.
     if (this.#shapesPointer) {
-      const properties = this.#shapesPointer ? allShapeProperties(this.#shapesPointer).hasOut(sh('path')) : []
+      const properties = this.#shapesPointer ? allShapeSubShapes(this.#shapesPointer).hasOut(sh('path')) : []
       const shapeBranches: Branch[] = properties.map((propertyPointer: Grapoi) =>
         this.#shapeBranchFromPointer(propertyPointer)
       )
@@ -91,7 +91,7 @@ export class ResourceFetcher {
     const getCurrentDepth = () => this.#branches.reduce((max, branch) => (branch.depth > max ? branch.depth : max), 0)
 
     let processedDepth = 1
-    while (processedDepth <= getCurrentDepth()) {
+    while (processedDepth <= getCurrentDepth() && this.#branches.some(branch => !branch.processed)) {
       const nextDepth = processedDepth + 1
       yield await this.executeStep(nextDepth)
       processedDepth = nextDepth
@@ -145,7 +145,7 @@ export class ResourceFetcher {
       )
       // If the shape pointer previously has been set create shape branches.
       if (this.#shapesPointer) {
-        const properties = this.#shapesPointer ? allShapeProperties(this.#shapesPointer).hasOut(sh('path')) : []
+        const properties = this.#shapesPointer ? allShapeSubShapes(this.#shapesPointer).hasOut(sh('path')) : []
 
         const shapeBranches = properties.map((propertyPointer: Grapoi) => this.#shapeBranchFromPointer(propertyPointer))
         for (const branch of shapeBranches) this.#addBranch(branch)
@@ -159,22 +159,31 @@ export class ResourceFetcher {
         this.#addDataBranches(leafBranch, dataPointer, leafBranch.propertyPointer)
       }
 
-      this.#processBranches(depth - 1, dataPointer)
+      this.#processBranches(depth, dataPointer)
     }
 
     const branches = JSON.parse(
-      JSON.stringify(this.#branches.filter(branch => branch.depth === 1), (key, value) => {
-        if (key === 'parent') return undefined
-        if (key === 'propertyPointer') return undefined
-        if (key === 'children' && value.length === 0) return undefined
-        if (key === 'quads') {
-          return value?.map((quad: OurQuad) => [context.compactIri(quad.subject.value), context.compactIri(quad.predicate.value), context.compactIri(quad.object.value)])
+      JSON.stringify(
+        this.#branches.filter(branch => branch.depth === 1),
+        (key, value) => {
+          if (key === 'parent') return undefined
+          if (key === 'propertyPointer') return undefined
+          if (key === 'children' && value.length === 0) return undefined
+          if (key === 'quads') {
+            return value?.map((quad: OurQuad) => [
+              context.compactIri(quad.subject.value),
+              context.compactIri(quad.predicate.value),
+              context.compactIri(quad.object.value)
+            ])
+          }
+          if (key === 'pathSegment') {
+            return (value as PathSegment)
+              .map(segment => segment.predicates.map(p => context.compactIri(p.value)).join(' | '))
+              .join(' / ')
+          }
+          return value
         }
-        if (key === 'pathSegment') {
-          return (value as PathSegment).map(segment => segment.predicates.map(p => context.compactIri(p.value)).join(' | ')).join(' / ')
-        }
-        return value
-      })
+      )
     )
 
     for (const branch of this.#branches) {
@@ -189,42 +198,64 @@ export class ResourceFetcher {
   }
 
   #processBranches(depth: number, dataPointer: Grapoi) {
+    const branchesToCheck: Branch[] = []
     // Process branches at current depth.
-    const currentBranches = this.#branches.filter(branch => branch.depth === depth && !branch.processed)
+    const currentBranches = this.#branches.filter(branch => !branch.processed && branch.depth === depth)
     for (const branch of currentBranches) {
       const branchDataPointer = this.#getDataPointerOfBranch(branch, dataPointer)
       const branchQuads = [...branchDataPointer.quads()] as OurQuad[]
+      const leafQuads = branchQuads.filter(quad => quad.isLeaf)
 
-      const processedBecauseEmpty = branchQuads.length === 0
-      const processedBecauseLiterals = branchQuads.every(quad => quad.object.termType === 'Literal')
+      branch.leafQuads = leafQuads
+
+      const shapesHaveFurtherProperties = branch.propertyPointer
+        ? allShapeSubShapes(branch.propertyPointer).hasOut(sh('property')).ptrs.length > 0
+        : false
+
+      const processedBecauseEmpty = leafQuads.length === 0
+      const processedBecauseLiterals = leafQuads.every(quad => quad.object.termType === 'Literal')
       const branchIsDeadEnd =
         // No blank nodes to follow,
-        branchQuads.every(quad => quad.object.termType !== 'BlankNode') &&
+        leafQuads.every(quad => quad.object.termType !== 'BlankNode') &&
         // and no shape properties to follow.
-        (!branch.propertyPointer || allShapeProperties(branch.propertyPointer).ptrs.length === 0)
+        !shapesHaveFurtherProperties
 
-      if (processedBecauseEmpty || processedBecauseLiterals || branchIsDeadEnd) {
+      const deadEndNamedNode =
+        leafQuads.every(quad => quad.object.termType === 'NamedNode') && !shapesHaveFurtherProperties
+
+      if (processedBecauseEmpty || processedBecauseLiterals || branchIsDeadEnd || deadEndNamedNode) {
+        branchesToCheck.push(branch)
+
         branch.quads = branchQuads
         branch.processed = depth
-
-        let parent = branch.parent
-        while (parent) {
-          const allChildrenProcessed = parent.children.every(child => child.processed)
-          if (allChildrenProcessed && (!parent.processed)) {
-            parent.processed = depth
-            if (parent.pathSegment[0].predicates[0].equals(schema('address'))) {
-              console.log(depth, parent)
-            }
-            const branchDataPointer = this.#getDataPointerOfBranch(parent, dataPointer)
-            const parentQuads = [...branchDataPointer.quads()] as OurQuad[]
-            parent.quads = parentQuads
-          }
-          parent = parent.parent
-        }
       }
-      else {
-        // console.log(branchQuads)
-        // console.log(branch.pathSegment[0].predicates[0].value)
+    }
+
+    const previousBranches = this.#branches.filter(branch => branch.depth === depth - 1 && !branch.processed)
+    for (const branch of previousBranches) {
+      const branchDataPointer = this.#getDataPointerOfBranch(branch, dataPointer)
+      const branchQuads = [...branchDataPointer.quads()] as OurQuad[]
+      const currentLeafQuads = branchQuads.filter(quad => quad.isLeaf)
+      const previousLeafQuads = branch.leafQuads ?? []
+
+      if (previousLeafQuads.length > currentLeafQuads.length) {
+        branch.quads = previousLeafQuads
+        branch.processed = depth
+        branchesToCheck.push(branch)
+      }
+    }
+
+    for (const branch of branchesToCheck) {
+      let parent = branch.parent
+      while (parent) {
+        const allChildrenProcessed = parent.children.every(child => child.processed)
+        if (allChildrenProcessed && !parent.processed) {
+          parent.processed = depth
+          const branchDataPointer = this.#getDataPointerOfBranch(parent, dataPointer)
+          const parentQuads = [...branchDataPointer.quads()] as OurQuad[]
+          parent.quads = parentQuads
+        }
+        parent = parent.parent
       }
     }
   }
@@ -246,7 +277,7 @@ export class ResourceFetcher {
     const leafQuads = [...branchDataPointer.distinct().out().quads()] as OurQuad[]
 
     const shapePredicates = propertyPointer
-      ? allShapeProperties(propertyPointer)
+      ? allShapeSubShapes(propertyPointer)
           .out(sh('path'))
           .map((pathPointer: Grapoi) => {
             const path = parsePath(pathPointer)
@@ -272,20 +303,13 @@ export class ResourceFetcher {
         }
       ]
 
-      const quads = filteredQuads.filter(quad => quad.predicate.equals(predicate))
-      const types = quads.filter(quad => quad.predicate.equals(rdf('type'))).map(quad => quad.object)
-      const pathPropertyPointer =
-        propertyPointer && types.length
-          ? propertyPointer.node().hasOut(rdf('type'), sh('NodeShape')).hasOut(sh('targetClass'), types)
-          : undefined
-
       return {
         pathSegment,
         depth: parent.depth + 1,
         parent,
         children: [],
         type: 'data',
-        propertyPointer: pathPropertyPointer
+        propertyPointer: undefined
       } satisfies Branch
     })
 
@@ -308,18 +332,19 @@ export class ResourceFetcher {
 }
 
 export type DebugBranch = {
-    pathSegment: string
-    depth: number
-    type: 'shape' | 'data'
-    processed: number
-    quads: string[][]
-    children: DebugBranch[]
+  pathSegment: string
+  depth: number
+  type: 'shape' | 'data'
+  processed: number
+  quads: string[][]
+  children: DebugBranch[]
 }
 
 export type StepResults = {
   dataset: DatasetCore<OurQuad>
   query: string
   branches: DebugBranch[]
+  expected?: string
 }
 
 // For local development so that tests always run after changes.

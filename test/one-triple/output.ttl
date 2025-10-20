@@ -1,0 +1,4 @@
+@prefix schema: <https://schema.org/> .
+@prefix ex: <https://example.org/> .
+
+ex:allanDoyle schema:givenName "Allan" .

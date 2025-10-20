@@ -18,6 +18,7 @@ export default await Promise.all(
   filteredTestNames.map(async (name: string) => {
     const subject = await import(`./${name}/iri.txt?raw`).then(m => df.namedNode(m.default.trim()))
     const source = await import(`./${name}/input.ttl?raw`).then(m => m.default.trim())
+    const output = await import(`./${name}/output.ttl?raw`).then(m => m.default.trim())
 
     let shape = ''
     try {
@@ -32,7 +33,8 @@ export default await Promise.all(
         subject,
         sources: [serializedSource(source)],
         shapes: shape ? serializedSource(shape) : undefined
-      }
+      },
+      output
     }
   })
 )

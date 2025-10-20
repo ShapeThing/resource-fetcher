@@ -10,6 +10,7 @@ export type Branch = {
   parent: Branch | null
   processed?: number
   quads?: OurQuad[]
+  leafQuads?: OurQuad[]
   propertyPointer?: Grapoi
   addedShapeBranches?: boolean
   addedDataBranches?: boolean

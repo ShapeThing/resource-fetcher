@@ -4,6 +4,7 @@ import type { Run } from '../App'
 type Props = {
   step: Run['steps'][number]
   depth: number
+  run: Run
 }
 
 const trimPrefixes = (turtle: string) => {
@@ -42,15 +43,15 @@ function Branch({ branch, depth }: { branch: DebugBranch; depth: number }) {
     <div
       key={JSON.stringify(branch)}
       data-processed={branch.processed}
-      className={`branch depth-${depth} ${branch.processed < depth ? 'previously-processed' : ''} ${branch.children && branch.children.length ? 'has-children' : 'no-children'}`}
+      className={`branch depth-${depth} ${branch.processed +1  < depth ? 'previously-processed' : ''} ${branch.children && branch.children.length ? 'has-children' : 'no-children'}`}
     >
       <span className="processed">{branch.processed ? '✔️' : '⏳'}</span>
       <span className="path-segment">{branch.pathSegment}</span>&nbsp;
       <em className={`branch-type branch-type-${branch.type}`}>{branch.type}</em>
       {branch.quads ? (
         <div className="branch-quads">
-          {branch.quads?.map(quad => (
-            <div className="quad" key={JSON.stringify(quad)}>
+          {branch.quads?.map((quad, index) => (
+            <div className="quad" key={JSON.stringify(quad) + index}>
               {quad.map(term => (
                 <span key={term} className="term">
                   {term}

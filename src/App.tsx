@@ -103,9 +103,22 @@ export default function App() {
         })
         result = await iterator.next()
       }
+
       setRuns(runs => {
         const newRuns = [...runs]
-        newRuns[newRuns.length - 1] = { ...newRuns[newRuns.length - 1], done: true }
+        const lastStep = newRuns[newRuns.length - 1].steps.at(-1)!
+
+        if (test.output.trim() !== lastStep.turtle.trim()) {
+          console.log(test.output.trim())
+          console.log('-----')
+          console.log(lastStep.turtle.trim())
+        }
+
+        newRuns[newRuns.length - 1] = {
+          ...newRuns[newRuns.length - 1],
+          done: true,
+          conforms: test.output ? test.output.trim() === lastStep.turtle.trim() : undefined
+        }
         return newRuns
       })
     }
@@ -186,7 +199,7 @@ export default function App() {
             <Fragment key={runIndex}>
               {run.steps.length ? (
                 <details
-                  open
+                  open={!run.conforms}
                   key={runIndex + '-' + runIndex}
                   className={`accordion-item status-${status || 'unknown'}`}
                 >
@@ -196,7 +209,7 @@ export default function App() {
                   {run.steps.map((step, stepIndex) => (
                     <div key={runIndex + '-' + stepIndex} className="">
                       <h5 className="step-title">Step {stepIndex + 1}</h5>
-                      <Step key={`${runIndex}-${stepIndex}`} step={step} depth={stepIndex + 1} />
+                      <Step key={`${runIndex}-${stepIndex}`} run={run} step={step} depth={stepIndex + 1} />
                     </div>
                   ))}
                 </details>
