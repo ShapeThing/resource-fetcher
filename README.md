@@ -15,12 +15,6 @@ When we encounter a blank node object, we don't save that triple immediately. In
 The fetcher builds progressively longer SPARQL queries that follow these predicate paths from the original subject through all intermediate nodes to fetch the complete blank node structures in single queries. This preserves blank node identity because all related triples are retrieved together in one query result, avoiding the identity collision problem that occurs when blank nodes are fetched
 across separate queries.
 
-## Features
-
-- **SHACL Shape Integration**: Use SHACL shapes to guide which properties to fetch
-- **Predicate Blacklisting**: Skip certain predicates during traversal
-- **Maximum Depth Control**: Limit traversal depth
-
 ## Usage
 
 ```typescript
@@ -30,19 +24,16 @@ import { namedNode } from '@rdfjs/data-model'
 
 const fetcher = new ResourceFetcher({
   subject: namedNode('http://example.org/person/john'),
-  engine: new QueryEngine(),
-  sources: ['https://example.org/data.ttl'],
+  engine: new QueryEngine(), // Comunica
+  sources: ['https://example.org/data.ttl'], // Comunica compatible sources.
   shapes: myShapesDataset, // Optional
-  maxDepth: 10, // Optional (default: 20)
-  passThroughCallback: shaclPassThroughCallback // optional. It allows you to define your own logic how to the algorithm should expand.
 })
 
-const store = await fetcher.get()
+
+for await (const step of fetcher.execute()) {
+
+}
 ```
-
-## Caveats
-
-- The algorithm over fetches one triple level.
 
 ## License
 
