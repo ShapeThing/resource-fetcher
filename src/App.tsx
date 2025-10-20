@@ -8,7 +8,8 @@ import { write } from '@jeswr/pretty-turtle'
 import tests from './tests'
 import { useLocalStorage } from '@uidotdev/usehooks'
 import { prefixes } from '../lib/helpers/namespaces'
-
+import intro from '../README.md?raw'
+import Markdown from 'react-markdown'
 const df = new DataFactory()
 
 type SerializedOptions = {
@@ -150,7 +151,9 @@ export default function App() {
 
   return (
     <>
-      <h1>Resource fetcher</h1>
+      <header>
+        <Markdown>{intro}</Markdown>
+      </header>
       <div className="accordion">
         <div className="accordion-item">
           <h2 className="accordion-header">
