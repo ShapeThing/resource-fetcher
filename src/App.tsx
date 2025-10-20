@@ -233,7 +233,7 @@ export default function App() {
                         <span className="step-count"> {run.steps.length} step{run.steps.length !== 1 ? 's' : ''}</span>
                       )}
                       {run.startTime && run.endTime && (
-                        <span className="execution-time"> ({run.endTime - run.startTime}ms)</span>
+                        <span className="execution-time"> ({run.endTime - run.startTime}ms on an in-memory dataset)</span>
                       )}
                     </span>
                   </summary>
