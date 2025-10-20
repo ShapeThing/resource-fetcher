@@ -152,7 +152,7 @@ export default function App() {
   return (
     <>
       <header>
-        <Markdown>{intro}</Markdown>
+        <Markdown>{intro.split('## The Problem')[0]}</Markdown>
       </header>
       <div className="accordion">
         <div className="accordion-item">
@@ -170,7 +170,7 @@ export default function App() {
               />
               Run all tests
             </label>
-            <label>
+            {/* <label>
               <input
                 type="radio"
                 value={'configuration'}
@@ -182,7 +182,7 @@ export default function App() {
                 name="run-type"
               />
               Playground
-            </label>
+            </label> */}
           </h2>
           {runType === 'all-tests' ? null : (
             <>

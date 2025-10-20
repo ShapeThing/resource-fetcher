@@ -148,3 +148,7 @@ details[open].accordion-item {
     display: flex;
     gap: 1rem;
 }
+
+input[type="radio"] {
+    display: none;
+}
