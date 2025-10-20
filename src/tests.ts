@@ -1,8 +1,8 @@
 import { DataFactory } from 'rdf-data-factory'
 
 const df = new DataFactory()
-const modules = import.meta.glob('./**/*')
-const testNames = new Set(Object.entries(modules).map(([path]) => path.split('/')[1]))
+const modules = import.meta.glob('../public/test/*/iri.txt')
+const testNames = new Set(Object.entries(modules).map(([path]) => path.split('/')[3]))
 
 const serializedSource = (value: string) => ({
   type: 'serialized',
@@ -16,13 +16,13 @@ const filteredTestNames = filtered.filter((testName) => !testName.endsWith('.ski
 
 export default await Promise.all(
   filteredTestNames.map(async (name: string) => {
-    const subject = await import(`./${name}/iri.txt?raw`).then(m => df.namedNode(m.default.trim()))
-    const source = await import(`./${name}/input.ttl?raw`).then(m => m.default.trim())
-    const output = await import(`./${name}/output.ttl?raw`).then(m => m.default.trim())
+    const subject = await fetch(`/test/${name}/iri.txt`).then(res => res.text()).then(m => df.namedNode(m.trim()))
+    const source = await fetch(`/test/${name}/input.ttl`).then(res => res.text()).then(m => m.trim())
+    const output = await fetch(`/test/${name}/output.ttl`).then(res => res.text()).then(m => m.trim())
 
     let shape = ''
     try {
-      shape = await import(`./${name}/shape.ttl?raw`).then(m => m.default.trim())
+      shape = await fetch(`/test/${name}/shape.ttl`).then(res => res.text()).then(m => m.trim())
     } catch {
       /* */
     }

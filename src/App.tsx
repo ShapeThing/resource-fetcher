@@ -5,7 +5,7 @@ import { ResourceFetcher, type Options, type SourceType, type StepResults } from
 import { QueryEngine } from '@comunica/query-sparql'
 import { DataFactory } from 'rdf-data-factory'
 import { write } from '@jeswr/pretty-turtle'
-import tests from '../test/tests'
+import tests from './tests'
 import { useLocalStorage } from '@uidotdev/usehooks'
 import { prefixes } from '../lib/helpers/namespaces'
 
