@@ -23,7 +23,7 @@ export default function Step({ step, depth }: Props) {
         <pre className="query">{step.query}</pre>
       </details>
       <details open>
-        <summary>Results</summary>
+        <summary>Query result</summary>
         <pre className="results">{trimPrefixes(step.turtle)}</pre>
       </details>
       <details open>

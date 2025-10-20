@@ -44,7 +44,7 @@ export default function App() {
   }
 
   const [runs, setRuns] = useState<Run[]>([])
-  const [runType, setRunType] = useLocalStorage<'configuration' | 'all-tests'>('runType', 'configuration')
+  const [runType, setRunType] = useLocalStorage<'configuration' | 'all-tests'>('runType', 'all-tests')
 
   useEffect(() => {
     if (runType === 'all-tests' && !initHasRun) {
@@ -157,19 +157,6 @@ export default function App() {
             <label>
               <input
                 type="radio"
-                value={'configuration'}
-                checked={runType === 'configuration'}
-                onChange={() => {
-                  setRuns(EMPTY_RUNS)
-                  setRunType('configuration')
-                }}
-                name="run-type"
-              />
-              Configuration
-            </label>
-            <label>
-              <input
-                type="radio"
                 value={'all-tests'}
                 checked={runType === 'all-tests'}
                 onChange={() => {
@@ -179,6 +166,19 @@ export default function App() {
                 name="run-type"
               />
               Run all tests
+            </label>
+            <label>
+              <input
+                type="radio"
+                value={'configuration'}
+                checked={runType === 'configuration'}
+                onChange={() => {
+                  setRuns(EMPTY_RUNS)
+                  setRunType('configuration')
+                }}
+                name="run-type"
+              />
+              Playground
             </label>
           </h2>
           {runType === 'all-tests' ? null : (

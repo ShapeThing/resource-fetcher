@@ -14,6 +14,12 @@ input[type="file"] {
     margin-right: .5rem;
 }
 
+summary {
+    font-weight: bold;
+    cursor: pointer;
+    margin-bottom: .5rem;
+}
+
 .accordion-header {
     margin: 0;
     border-radius: var(--border-radius);
@@ -23,6 +29,14 @@ input[type="file"] {
     padding: .5rem;
     background-color: var(--dark-gray);
     font-size: 1.4rem;
+    cursor: pointer;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+
+    &:hover {
+        background-color: var(--gray);
+    }
 
     &.step {
         background-color: var(--gray);
@@ -39,8 +53,21 @@ input[type="file"] {
 
 .accordion-item {
     padding: .5rem;
-    margin-top: 1rem;
-    margin-bottom: 3rem;
+}
+
+.status-successful .accordion-header {
+    background-color: rgb(146, 209, 146);
+
+
+    &:hover {
+        background-color: rgb(51, 175, 51);
+    }
+}
+
+details[open].accordion-item {
+    .accordion-header {
+        background-color: rgb(51, 175, 51);
+    }
 }
 
 .field {
@@ -48,18 +75,19 @@ input[type="file"] {
 }
 
 .label {
-    font-weight: bold;;
+    font-weight: bold;
+    ;
 }
 
 .step {
-    border: 1px solid gray;
-    padding: 0 .5rem;
+    border: 1px solid rgb(216, 216, 216);
+    padding: 1rem;
     margin-top: 1rem;
     margin-bottom: 3rem;
 
     .results {
         padding: 1rem;
-        background-color: #ffe9e9;
+        background-color: #e9ffea;
     }
 }
 
@@ -93,10 +121,21 @@ input[type="file"] {
 .previously-processed.no-children {
     display: none;
 }
+
 .branch-type-shape {
     color: rgb(0, 114, 15);
 }
 
 .branch-type-data {
     color: rgb(0, 123, 255);
+}
+
+.step-title {
+    position: sticky;
+    top: 2.5rem;
+    background-color: rgb(218, 218, 218);
+    padding: 1rem 1rem;
+    border-radius: var(--border-radius);
+    margin: 0;
+    margin-top: 1rem;
 }
