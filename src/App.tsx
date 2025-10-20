@@ -10,6 +10,7 @@ import { useLocalStorage } from '@uidotdev/usehooks'
 import { prefixes } from '../lib/helpers/namespaces'
 import intro from '../README.md?raw'
 import Markdown from 'react-markdown'
+import type { NamedNode } from '@rdfjs/types'
 const df = new DataFactory()
 
 type SerializedOptions = {
@@ -22,6 +23,15 @@ export type Run = {
   name: string
   done?: true
   steps: (StepResults & { turtle: string })[]
+  test?: {
+    name: string
+    input: {
+      subject: NamedNode
+      sources: SourceType[]
+      shapes?: SourceType
+    }
+    output: string
+  }
   conforms?: boolean
 }
 
@@ -80,7 +90,7 @@ export default function App() {
   const runAllTests = async () => {
     setRuns([])
     for (const test of tests) {
-      setRuns(runs => [...runs, { name: test.name, steps: [] }])
+      setRuns(runs => [...runs, { name: test.name, steps: [], test }])
       const fetcher = new ResourceFetcher({
         subject: test.input.subject,
         sources: test.input.sources,
@@ -198,6 +208,11 @@ export default function App() {
         {runs.map((run, runIndex) => {
           const status = run.done && 'conforms' in run ? (run.conforms ? 'successful' : 'failed') : ''
 
+          const shapes =
+            run.test?.input?.shapes?.value && run.test?.input?.shapes?.value?.length > 2
+              ? run.test?.input?.shapes?.value
+              : undefined
+
           return (
             <Fragment key={runIndex}>
               {run.steps.length ? (
@@ -209,6 +224,14 @@ export default function App() {
                   <summary className="accordion-header" key={runIndex}>
                     {status === 'successful' ? '✓' : status === 'failed' ? '✗' : null} {run.name}
                   </summary>
+
+                  {shapes ? (
+                    <div>
+                      <h3>These SHACL shapes are used to guide the fetching</h3>
+                      <pre>{shapes}</pre>
+                    </div>
+                  ) : null}
+
                   {run.steps.map((step, stepIndex) => (
                     <div key={runIndex + '-' + stepIndex} className="">
                       <h5 className="step-title">Step {stepIndex + 1}</h5>

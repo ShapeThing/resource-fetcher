@@ -19,27 +19,6 @@
   stsr:filenameSuggestion ( schema:givenName " " schema:familyName ) ;
   sh:ignoredProperties (stsr:label) ;
 
-  # sh:property [
-  #   sh:path rdf:type ;
-  #   sh:hasValue schema:Person ;
-  # ];
-
-  # sh:property [
-  #   sh:path :PersonShape ;
-  #   sh:hasValue <> ;
-  # ];
-
-  # sh:property [
-  #   sh:name "Voornaam"@nl, "Given name"@en ;
-  #   sh:group <#name> ;
-  #   sh:path schema:givenName ;
-  #   faker:generator faker:person.firstName ;
-  #   sh:minCount 1;
-  #   sh:maxCount 1;
-  #   sh:datatype xsd:string ;
-  # ];
-
-
   sh:property [
     sh:name "Ouder Voornaam"@nl, "Parent Given name"@en ;
     sh:group <#name> ;
@@ -81,76 +60,6 @@
     sh:minCount 1;
     sh:path schema:gender ;
   ];
-  
-  # sh:property [
-  #   sh:name "Foto"@nl, "Photo"@en ;
-  #   sh:group <#general> ;
-  #   sh:maxCount 1;
-  #   dash:editor stsr:FileUploadEditor ;
-  #   stsr:uploadUrl <../Mensen> ;
-  #   sh:path schema:image ;
-  # ];
-  
-  # sh:property [
-  #   sh:name "Geboortedatum"@nl, "Date of birth"@en ;
-  #   sh:path schema:birthDate ;
-  #   sh:group <#general> ;
-  #   sh:order 2 ;
-  #   sh:editor dash:DatePickerEditor ;
-  #   faker:generator faker:date.birthdate ;
-  #   sh:maxCount 1;
-  #   sh:datatype xsd:date ;
-  # ];
-
-  # sh:property [
-  #   sh:name "Geboorte locatie"@nl, "Location of birth"@en ;
-  #   sh:path schema:birthPlace ;
-  #   sh:order 3 ;
-  #   sh:group <#general> ;
-  #   faker:generator faker:location.city ;
-  #   sh:maxCount 1;
-  #   sh:datatype xsd:string ;
-  # ];
-
-  # sh:property [
-  #   sh:name "Nationaliteit"@nl, "Nationality"@en ;
-  #   sh:path schema:nationality ;
-  #   sh:order 5 ;
-  #   sh:group <#general> ;
-  #   dash:viewer dash:LabelViewer ;
-  #   owl:imports <./countries.ttl> ;
-  #   sh:in <./countries.ttl#list> ;
-  # ];
-
-  # sh:property [
-  #   sh:name "Sterfdatum"@nl, "Date of death"@en ;
-  #   sh:path schema:deathDate ;
-  #   sh:order 3 ;
-  #   sh:group <#death> ;
-  #   sh:editor dash:DatePickerEditor ;
-  #   faker:generator faker:date.birthdate ;
-  #   sh:maxCount 1;
-  #   sh:datatype xsd:date ;
-  # ];
-
-  # sh:property [
-  #   sh:name "Locatie van overlijden"@nl, "Location of death"@en ;
-  #   sh:path schema:deathPlace ;
-  #   sh:order 3 ;
-  #   sh:group <#death> ;
-  #   faker:generator faker:location.city ;
-  #   sh:maxCount 1;
-  # ];
-
-  # sh:property [
-  #   sh:name "E-mail"@nl, "Mail"@en ;
-  #   sh:order 4;
-  #   sh:group <#general> ;
-  #   sh:path schema:email ;
-  #   faker:generator faker:internet.email ;
-  #   sh:maxCount 1;
-  #   sh:datatype xsd:string ;
-  # ];
 
   sh:property [
     sh:name "Adres"@nl, "Address"@en ;

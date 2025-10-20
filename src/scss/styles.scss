@@ -133,11 +133,20 @@ details[open].accordion-item {
 }
 
 .branch-type-shape {
-    color: rgb(0, 114, 15);
+    background-color: rgb(0, 114, 15);
+    color: white;
 }
 
 .branch-type-data {
-    color: rgb(0, 123, 255);
+    background-color: rgb(0, 123, 255);
+    color: white;
+}
+
+.branch-type-data, .branch-type-shape {
+    padding: 1px 6px;
+    margin-left: 4px;
+    font-size: .8rem;
+    border-radius: var(--border-radius);
 }
 
 .step-title {
