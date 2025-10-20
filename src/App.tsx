@@ -33,6 +33,8 @@ export type Run = {
     output: string
   }
   conforms?: boolean
+  startTime?: number
+  endTime?: number
 }
 
 let initHasRun = false
@@ -90,7 +92,8 @@ export default function App() {
   const runAllTests = async () => {
     setRuns([])
     for (const test of tests) {
-      setRuns(runs => [...runs, { name: test.name, steps: [], test }])
+      const startTime = Date.now()
+      setRuns(runs => [...runs, { name: test.name, steps: [], test, startTime }])
       const fetcher = new ResourceFetcher({
         subject: test.input.subject,
         sources: test.input.sources,
@@ -115,6 +118,7 @@ export default function App() {
         result = await iterator.next()
       }
 
+      const endTime = Date.now()
       setRuns(runs => {
         const newRuns = [...runs]
         const lastStep = newRuns[newRuns.length - 1].steps.at(-1)!
@@ -128,6 +132,7 @@ export default function App() {
         newRuns[newRuns.length - 1] = {
           ...newRuns[newRuns.length - 1],
           done: true,
+          endTime,
           conforms: test.output ? test.output.trim() === lastStep.turtle.trim() : undefined
         }
         return newRuns
@@ -223,6 +228,14 @@ export default function App() {
                 >
                   <summary className="accordion-header" key={runIndex}>
                     {status === 'successful' ? '✓' : status === 'failed' ? '✗' : null} {run.name}
+                    <span className="test-info">
+                      {run.steps.length > 0 && (
+                        <span className="step-count"> {run.steps.length} step{run.steps.length !== 1 ? 's' : ''}</span>
+                      )}
+                      {run.startTime && run.endTime && (
+                        <span className="execution-time"> ({run.endTime - run.startTime}ms)</span>
+                      )}
+                    </span>
                   </summary>
 
                   {shapes ? (
