@@ -157,7 +157,11 @@ export class ResourceFetcher {
       const unprocessedLeafBranches = this.#branches.filter(branch => branch.depth === depth - 1 && !branch.processed)
       for (const leafBranch of unprocessedLeafBranches) {
         this.#addDataBranches(leafBranch, dataPointer, leafBranch.propertyPointer)
+        const properties = leafBranch.propertyPointer ? allShapeSubShapes(leafBranch.propertyPointer).hasOut(sh('path')) : []
+        const shapeBranches = properties.map((propertyPointer: Grapoi) => this.#shapeBranchFromPointer(propertyPointer, leafBranch))
+        for (const branch of shapeBranches) this.#addBranch(branch)
       }
+
 
       this.#processBranches(depth, dataPointer)
     }

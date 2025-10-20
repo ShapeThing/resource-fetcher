@@ -70,7 +70,13 @@ img {
 
 details[open].accordion-item {
     .accordion-header {
-        background-color: rgb(51, 175, 51);
+        background-color: rgb(170, 170, 170);
+    }
+
+    &.status-successful {
+        .accordion-header {
+            background-color: rgb(51, 175, 51);
+        }
     }
 }
 
