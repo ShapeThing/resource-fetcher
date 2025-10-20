@@ -5,11 +5,6 @@ import react from '@vitejs/plugin-react'
 export default defineConfig({
   plugins: [react()],
   build: {
-    lib: {
-      entry: './lib/ResourceFetcher.ts',
-      name: 'ResourceFetcher',
-      fileName: 'resource-fetcher',
-      formats: ['es'],
-    }
+    outDir: 'demo-dist',
   }
 })
