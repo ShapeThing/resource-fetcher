@@ -1,0 +1,31 @@
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix sh: <http://www.w3.org/ns/shacl#> .
+@prefix schema: <https://schema.org/> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix dash: <http://datashapes.org/dash#> .
+@prefix stsr: <http://ontology.shapething.com/shacl-renderer#> .
+@prefix stf: <http://ontology.shapething.com/facet#> .
+@prefix c: <http://color.com#> .
+
+c:ColorPalette a rdfs:Class ;
+  a sh:NodeShape ;
+  sh:targetClass sh:ColorPalette ;
+  sh:name "Color palette"@en ;
+
+  sh:property [
+    sh:name "Colors"@en ;
+    sh:path sh:color ;
+    sh:in (c:Red c:Green c:Blue) ;
+  ] ;
+.
+
+c:Red a c:Color ;
+  rdfs:label "Red (label)"@en ;
+   .
+c:Green a c:Color ;
+  rdfs:label "Green (label)"@en ;
+   .
+c:Blue a c:Color ;
+  rdfs:label "Blue (label)"@en ;
+   .
