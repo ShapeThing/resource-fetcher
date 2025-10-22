@@ -44,7 +44,6 @@ export class ResourceFetcher {
   #branches: Branch[] = []
 
   constructor(options: Options) {
-    console.log(options)
     this.#options = options
   }
 

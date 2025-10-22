@@ -24,22 +24,8 @@ export default await Promise.all(
     const subject = await fetchTestFile(name, 'iri.txt').then(m => df.namedNode(m))
     const source = await fetchTestFile(name, 'input.ttl')
     const output = await fetchTestFile(name, 'output.ttl')
-
-    let shape = ''
-    try {
-      shape = await fetchTestFile(name, 'shape.ttl')
-    } catch {
-      /* */
-    }
-
-    let shapeIri = ''
-    try {
-      shapeIri = await fetch(`/test/${name}/shape-iri.txt`).then(res => {
-        return res.headers.get('content-type') !== 'text/html' ? res.text() : ''
-      }).then(m => m.trim())
-    } catch {
-      /* */
-    }
+    const shape = await fetchTestFile(name, 'shape.ttl')
+    const shapeIri = await fetchTestFile(name, 'shape-iri.txt')
 
     return {
       name: name.replace('.only', '').replace('.skip', ''),

@@ -5,7 +5,6 @@ import { getLeafBranches } from '../helpers/getLeafBranches.ts'
 import type { Branch } from './Branch.ts'
 import { buildTrailToBranch } from '../helpers/buildTrailToBranch.ts'
 
-
 export const generateQuery = (
   subject: Quad_Subject,
   depth: number,
@@ -56,16 +55,23 @@ export const generateQuery = (
   const query = `SELECT * WHERE {
       GRAPH ?g {
       ${
-        leafBranches.length === 0
+        depth === 1
           ? `
-        VALUES (?node_0) { (<${subject.value}>) }
-        ?node_0 ?predicate_0 ?node_1 .
+          {
+            VALUES (?node_0) { (<${subject.value}>) }
+            ?node_0 ?predicate_0 ?node_1 .
+          } ${patternsAndValues.size ? 'UNION' : ''}
       `
           : ''
       }
         ${[...patternsAndValues.entries()]
           .map(([pattern, predicateSets]) => {
-            const lastNodeIndex = Math.max(...pattern.split(' ').map(part => parseInt(part.split('_').pop()!)).filter(Number.isInteger))
+            const lastNodeIndex = Math.max(
+              ...pattern
+                .split(' ')
+                .map(part => parseInt(part.split('_').pop()!))
+                .filter(Number.isInteger)
+            )
             const variables = pattern.split(' ').filter(part => part.includes('?predicate'))
 
             const valueSets = predicateSets.map(
@@ -76,7 +82,7 @@ export const generateQuery = (
             return `{
           VALUES (?node_0 ${variables.join(' ')}) { ${deduplicatedValueSets.join('\n')} }
           ${pattern} .
-          ?node_${lastNodeIndex} ?predicate_${variables.length} ?node_${lastNodeIndex + 1} .
+          ${depth === 1 ? '' : `?node_${lastNodeIndex} ?predicate_${variables.length} ?node_${lastNodeIndex + 1} .`}
         }`
           })
           .join('\n UNION \n')}

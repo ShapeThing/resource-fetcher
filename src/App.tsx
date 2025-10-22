@@ -124,11 +124,11 @@ export default function App() {
         const newRuns = [...runs]
         const lastStep = newRuns[newRuns.length - 1].steps.at(-1)!
 
-        // if (test.output.trim() !== lastStep.turtle.trim()) {
-        //   console.log(test.output.trim())
-        //   console.log('-----')
-        //   console.log(lastStep.turtle.trim())
-        // }
+        if (test.output.trim() !== lastStep.turtle.trim()) {
+          console.log(test.output.trim())
+          console.log('-----')
+          console.log(lastStep.turtle.trim())
+        }
 
         newRuns[newRuns.length - 1] = {
           ...newRuns[newRuns.length - 1],
