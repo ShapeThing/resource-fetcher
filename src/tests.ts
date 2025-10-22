@@ -14,15 +14,29 @@ const serializedSource = (value: string) => ({
 const filtered = [...testNames].some((testName) => testName.endsWith('.only')) ? [...testNames].filter((testName) => testName.endsWith('.only')) : [...testNames]
 const filteredTestNames = filtered.filter((testName) => !testName.endsWith('.skip'))
 
+const fetchTestFile = async (testName: string, fileName: string) => {
+  const response = await fetch(`/test/${testName}/${fileName}`)
+  return response.headers.get('content-type') !== 'text/html' ? (await response.text()).trim() : ''
+}
+
 export default await Promise.all(
   filteredTestNames.map(async (name: string) => {
-    const subject = await fetch(`/test/${name}/iri.txt`).then(res => res.text()).then(m => df.namedNode(m.trim()))
-    const source = await fetch(`/test/${name}/input.ttl`).then(res => res.text()).then(m => m.trim())
-    const output = await fetch(`/test/${name}/output.ttl`).then(res => res.text()).then(m => m.trim())
+    const subject = await fetchTestFile(name, 'iri.txt').then(m => df.namedNode(m))
+    const source = await fetchTestFile(name, 'input.ttl')
+    const output = await fetchTestFile(name, 'output.ttl')
 
     let shape = ''
     try {
-      shape = await fetch(`/test/${name}/shape.ttl`).then(res => res.text()).then(m => m.trim())
+      shape = await fetchTestFile(name, 'shape.ttl')
+    } catch {
+      /* */
+    }
+
+    let shapeIri = ''
+    try {
+      shapeIri = await fetch(`/test/${name}/shape-iri.txt`).then(res => {
+        return res.headers.get('content-type') !== 'text/html' ? res.text() : ''
+      }).then(m => m.trim())
     } catch {
       /* */
     }
@@ -32,7 +46,8 @@ export default await Promise.all(
       input: {
         subject,
         sources: [serializedSource(source)],
-        shapes: shape ? serializedSource(shape) : undefined
+        shapes: shape ? serializedSource(shape) : undefined,
+        shapeIri: shapeIri ? df.namedNode(shapeIri) : undefined
       },
       output
     }

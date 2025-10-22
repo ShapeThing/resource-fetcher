@@ -52,8 +52,8 @@ function Branch({ branch, depth }: { branch: DebugBranch; depth: number }) {
         <div className="branch-quads">
           {branch.quads?.map((quad, index) => (
             <div className="quad" key={JSON.stringify(quad) + index}>
-              {quad.map(term => (
-                <span key={term} className="term">
+              {quad.map((term, index) => (
+                <span key={term + index} className="term">
                   {term}
                 </span>
               ))}

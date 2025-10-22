@@ -29,6 +29,7 @@ export type Options = {
   sources: SourceType[]
   shapes?: SourceType | DatasetCore<OurQuad>
   engine: QueryEngine
+  shapeIri?: NamedNode
   debug?: true
 }
 
@@ -43,11 +44,8 @@ export class ResourceFetcher {
   #branches: Branch[] = []
 
   constructor(options: Options) {
+    console.log(options)
     this.#options = options
-    const internalOptions = options as internalOptions
-    if (internalOptions.shapesPointer) {
-      this.#shapesPointer = internalOptions.shapesPointer
-    }
   }
 
   get #engineOptions() {
@@ -74,19 +72,25 @@ export class ResourceFetcher {
         this.#shapesStore = this.#options.shapes
       }
     }
+
+    const internalOptions = this.#options as internalOptions
+    if (internalOptions.shapesPointer) {
+      this.#shapesPointer = internalOptions.shapesPointer
+    }
+
+    if (!this.#shapesPointer && this.#options.shapes && this.#options.shapeIri) {
+      this.#shapesPointer = grapoi({ dataset: this.#shapesStore, factory, term: this.#options.shapeIri })
+      // If shapes and a shapeIri are provided we can use shapes from the first step.
+      this.#appendShapeBranches()
+    }
   }
 
   async *execute(): AsyncGenerator<StepResults> {
     await this.#processOptions()
+
     yield await this.executeStep(1)
     // After we have fetched the initial ?s ?p ?o, we can determine the classes of the subject.
-    if (this.#shapesPointer) {
-      const properties = this.#shapesPointer ? allShapeSubShapes(this.#shapesPointer).hasOut(sh('path')) : []
-      const shapeBranches: Branch[] = properties.map((propertyPointer: Grapoi) =>
-        this.#shapeBranchFromPointer(propertyPointer)
-      )
-      for (const branch of shapeBranches) this.#addBranch(branch)
-    }
+    this.#appendShapeBranches()
 
     const getCurrentDepth = () => this.#branches.reduce((max, branch) => (branch.depth > max ? branch.depth : max), 0)
 
@@ -95,6 +99,16 @@ export class ResourceFetcher {
       const nextDepth = processedDepth + 1
       yield await this.executeStep(nextDepth)
       processedDepth = nextDepth
+    }
+  }
+
+  #appendShapeBranches() {
+    if (this.#shapesPointer) {
+      const properties = this.#shapesPointer ? allShapeSubShapes(this.#shapesPointer).hasOut(sh('path')) : []
+      const shapeBranches: Branch[] = properties.map((propertyPointer: Grapoi) =>
+        this.#shapeBranchFromPointer(propertyPointer)
+      )
+      for (const branch of shapeBranches) this.#addBranch(branch)
     }
   }
 
@@ -157,11 +171,14 @@ export class ResourceFetcher {
       const unprocessedLeafBranches = this.#branches.filter(branch => branch.depth === depth - 1 && !branch.processed)
       for (const leafBranch of unprocessedLeafBranches) {
         this.#addDataBranches(leafBranch, dataPointer, leafBranch.propertyPointer)
-        const properties = leafBranch.propertyPointer ? allShapeSubShapes(leafBranch.propertyPointer).hasOut(sh('path')) : []
-        const shapeBranches = properties.map((propertyPointer: Grapoi) => this.#shapeBranchFromPointer(propertyPointer, leafBranch))
+        const properties = leafBranch.propertyPointer
+          ? allShapeSubShapes(leafBranch.propertyPointer).hasOut(sh('path'))
+          : []
+        const shapeBranches = properties.map((propertyPointer: Grapoi) =>
+          this.#shapeBranchFromPointer(propertyPointer, leafBranch)
+        )
         for (const branch of shapeBranches) this.#addBranch(branch)
       }
-
 
       this.#processBranches(depth, dataPointer)
     }
@@ -232,6 +249,7 @@ export class ResourceFetcher {
 
         branch.quads = branchQuads
         branch.processed = depth
+        console.log('Branch completed at depth', depth, branch.pathSegment[0])
       }
     }
 
@@ -245,6 +263,7 @@ export class ResourceFetcher {
       if (previousLeafQuads.length > currentLeafQuads.length) {
         branch.quads = previousLeafQuads
         branch.processed = depth
+        console.log('Branch completed due to less leaf quads than before at depth', depth, branch)
         branchesToCheck.push(branch)
       }
     }
