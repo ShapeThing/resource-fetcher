@@ -106,21 +106,21 @@ export class ResourceFetcher {
       const properties = this.#shapesPointer ? allShapeSubShapes(this.#shapesPointer).hasOut(sh('path')) : []
       const shapeBranches: Branch[] = properties.map((propertyPointer: Grapoi) =>
         this.#shapeBranchFromPointer(propertyPointer)
-      )
+      ).flat()
       for (const branch of shapeBranches) this.#addBranch(branch)
     }
   }
 
-  #shapeBranchFromPointer(propertyPointer: Grapoi, parent?: Branch): Branch {
+  #shapeBranchFromPointer(propertyPointer: Grapoi, parent?: Branch): Branch[] {
     const path = parsePath(propertyPointer.out(sh('path')))
-    return {
+    return [{
       pathSegment: path,
       propertyPointer,
       parent: parent ?? null,
       depth: (parent?.depth ?? 0) + 1,
       children: [],
       type: 'shape'
-    } satisfies Branch
+    } satisfies Branch]
   }
 
   #addBranch(branch: Branch) {
@@ -160,7 +160,7 @@ export class ResourceFetcher {
       if (this.#shapesPointer) {
         const properties = this.#shapesPointer ? allShapeSubShapes(this.#shapesPointer).hasOut(sh('path')) : []
 
-        const shapeBranches = properties.map((propertyPointer: Grapoi) => this.#shapeBranchFromPointer(propertyPointer))
+        const shapeBranches = properties.map((propertyPointer: Grapoi) => this.#shapeBranchFromPointer(propertyPointer)).flat()
         for (const branch of shapeBranches) this.#addBranch(branch)
       }
 
@@ -175,7 +175,7 @@ export class ResourceFetcher {
           : []
         const shapeBranches = properties.map((propertyPointer: Grapoi) =>
           this.#shapeBranchFromPointer(propertyPointer, leafBranch)
-        )
+        ).flat()
         for (const branch of shapeBranches) this.#addBranch(branch)
       }
 
