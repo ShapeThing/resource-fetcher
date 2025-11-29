@@ -11,6 +11,7 @@ import { context, queryPrefixes, rdf, sh } from './helpers/namespaces'
 import { allShapeSubShapes } from './helpers/allShapeSubShapes'
 import parsePath, { type PathSegment } from './helpers/parsePath'
 import TermSet from '@rdfjs/term-set'
+import { getLeafBranches } from './helpers/getLeafBranches'
 const factory = new DataFactory()
 
 export type SourceType =
@@ -104,23 +105,49 @@ export class ResourceFetcher {
   #appendShapeBranches() {
     if (this.#shapesPointer) {
       const properties = this.#shapesPointer ? allShapeSubShapes(this.#shapesPointer).hasOut(sh('path')) : []
-      const shapeBranches: Branch[] = properties.map((propertyPointer: Grapoi) =>
-        this.#shapeBranchFromPointer(propertyPointer)
-      )
+      const shapeBranches: Branch[] = properties
+        .map((propertyPointer: Grapoi) => this.#shapeBranchFromPointer(propertyPointer))
+        .flat()
       for (const branch of shapeBranches) this.#addBranch(branch)
     }
   }
 
-  #shapeBranchFromPointer(propertyPointer: Grapoi, parent?: Branch): Branch {
+  // TODO I am working here.
+  // Lets add an orMore key and handle creating pathSegments for those cases.
+  #shapeBranchFromPointer(propertyPointer: Grapoi, parent?: Branch): Branch[] {
     const path = parsePath(propertyPointer.out(sh('path')))
-    return {
-      pathSegment: path,
+    const [nextPathSegment, ...restPath] = parent?.restPath?.length ? parent.restPath : path
+
+    const mainBranch = {
+      pathSegment: [nextPathSegment],
+      restPath,
       propertyPointer,
       parent: parent ?? null,
       depth: (parent?.depth ?? 0) + 1,
       children: [],
       type: 'shape'
     } satisfies Branch
+
+    /**
+    if (nextPathSegment.quantifier === 'zeroOrMore') {
+      console.log(this)
+      return [
+        // We add the zero case as well.
+        mainBranch,
+        {
+          pathSegment: [restPath[0]],
+          restPath: restPath.slice(1),
+          propertyPointer,
+          parent: parent ?? null,
+          depth: (parent?.depth ?? 0),
+          children: [],
+          type: 'shape'
+        } satisfies Branch
+      ]
+    }
+       */
+
+    return [mainBranch]
   }
 
   #addBranch(branch: Branch) {
@@ -137,6 +164,7 @@ export class ResourceFetcher {
   }
 
   async executeStep(depth: number) {
+    // console.log('Executing step at depth', depth)
     const query = generateQuery(this.#options.subject, depth, this.#branches, this.#options.debug)
     const results = await this.executeQuery(query)
 
@@ -160,7 +188,9 @@ export class ResourceFetcher {
       if (this.#shapesPointer) {
         const properties = this.#shapesPointer ? allShapeSubShapes(this.#shapesPointer).hasOut(sh('path')) : []
 
-        const shapeBranches = properties.map((propertyPointer: Grapoi) => this.#shapeBranchFromPointer(propertyPointer))
+        const shapeBranches = properties
+          .map((propertyPointer: Grapoi) => this.#shapeBranchFromPointer(propertyPointer))
+          .flat()
         for (const branch of shapeBranches) this.#addBranch(branch)
       }
 
@@ -173,9 +203,9 @@ export class ResourceFetcher {
         const properties = leafBranch.propertyPointer
           ? allShapeSubShapes(leafBranch.propertyPointer).hasOut(sh('path'))
           : []
-        const shapeBranches = properties.map((propertyPointer: Grapoi) =>
-          this.#shapeBranchFromPointer(propertyPointer, leafBranch)
-        )
+        const shapeBranches = properties
+          .map((propertyPointer: Grapoi) => this.#shapeBranchFromPointer(propertyPointer, leafBranch))
+          .flat()
         for (const branch of shapeBranches) this.#addBranch(branch)
       }
 
@@ -248,7 +278,7 @@ export class ResourceFetcher {
 
         branch.quads = branchQuads
         branch.processed = depth
-        console.log('Branch completed at depth', depth, branch.pathSegment[0])
+        // console.log('Branch completed at depth', depth, branch.pathSegment[0])
       }
     }
 
@@ -259,26 +289,43 @@ export class ResourceFetcher {
       const currentLeafQuads = branchQuads.filter(quad => quad.isLeaf)
       const previousLeafQuads = branch.leafQuads ?? []
 
+      // Processes too much.
       if (previousLeafQuads.length > currentLeafQuads.length) {
-        branch.quads = previousLeafQuads
-        branch.processed = depth
-        console.log('Branch completed due to less leaf quads than before at depth', depth, branch)
-        branchesToCheck.push(branch)
+
+        const trailHasBlankNode = branchQuads.some(quad => quad.subject.termType === 'BlankNode' || quad.object.termType === 'BlankNode')
+
+        if (!trailHasBlankNode) {
+          branch.quads = previousLeafQuads
+          branch.processed = depth
+          console.log('Branch completed due to less leaf quads than before at depth', depth, branch, previousLeafQuads)
+          branchesToCheck.push(branch)
+        }
       }
     }
 
     for (const branch of branchesToCheck) {
+      let rootParent: Branch | undefined = undefined
       let parent = branch.parent
-      while (parent) {
-        const allChildrenProcessed = parent.children.every(child => child.processed)
-        if (allChildrenProcessed && !parent.processed) {
-          parent.processed = depth
-          const branchDataPointer = this.#getDataPointerOfBranch(parent, dataPointer)
-          const parentQuads = [...branchDataPointer.quads()] as OurQuad[]
-          parent.quads = parentQuads
-        }
+      while( parent) {
         parent = parent.parent
+        // Weird, the toplevel parent has all children regardsless of depth.
+        if (parent  && parent.depth > 0) rootParent = parent
       }
+
+      if (rootParent) {
+        const leafBranches = getLeafBranches([rootParent])
+  
+        console.log({leafBranches})
+      }
+        // const allChildrenProcessed = parent.children.every(child => child.processed)
+        // if (allChildrenProcessed && !parent.processed) {
+        //   parent.processed = depth
+        //   const branchDataPointer = this.#getDataPointerOfBranch(parent, dataPointer)
+        //   const parentQuads = [...branchDataPointer.quads()] as OurQuad[]
+        //   parent.quads = parentQuads
+        // }
+
+
     }
   }
 

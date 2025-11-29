@@ -15,6 +15,9 @@ export const generateQuery = (
 
   // Get all leaf branches and process their complete trails
   const leafBranches = getLeafBranches(branches)
+
+  // console.log(depth, leafBranches.map(b => b.pathSegment[0].predicates[0].value))
+
   const processedBranches = new Set<Branch>()
 
   for (const leafBranch of leafBranches) {

@@ -1,0 +1,16 @@
+@prefix : <https://example.org/> .
+
+:thing :mainBranch
+  [
+    :smallerBranch [
+      :leafNode 1
+    ]
+  ], [
+    :biggerBranch [
+      :middleNode [
+        :leafNode 2 ;
+        :anotherLeafNode 3
+      ]
+    ]
+  ] ;
+.

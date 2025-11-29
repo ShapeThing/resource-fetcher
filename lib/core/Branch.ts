@@ -7,6 +7,8 @@ export type Branch = {
   children: Branch[]
   depth: number
   type: 'shape' | 'data'
+  restPath?: PathSegment
+  zeroOrMoreBranch?: Branch
   parent: Branch | null
   processed?: number
   quads?: OurQuad[]

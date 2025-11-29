@@ -1,0 +1,15 @@
+@prefix ex: <https://example.org/> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+ex:thing ex:mainBranch [
+    ex:biggerBranch [
+      ex:middleNode [
+        ex:leafNode 2 ;
+        ex:anotherLeafNode 3
+      ]
+    ]
+  ], [
+    ex:smallerBranch [
+      ex:leafNode 1
+    ]
+  ] .
