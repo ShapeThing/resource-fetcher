@@ -57,23 +57,51 @@ export class Branch {
   toQueryPatterns(): QueryPattern[] {
     const node_0 = this.#resourceFetcher.resourceIri;
 
-    // Expand segments with zeroOrMore quantifier
+    // Expand segments with oneOrMore, zeroOrMore, or zeroOrOne quantifier
     const expandedPaths: Path[] = [];
+    const hasOneOrMore = this.#path.some(
+      (segment) => segment.quantifier === "oneOrMore"
+    );
     const hasZeroOrMore = this.#path.some(
       (segment) => segment.quantifier === "zeroOrMore"
     );
+    const hasZeroOrOne = this.#path.some(
+      (segment) => segment.quantifier === "zeroOrOne"
+    );
 
-    if (hasZeroOrMore) {
-      const maxRepetitions = (this.#queryCounter + 1) * 3;
+    if (hasOneOrMore || hasZeroOrMore) {
+      const maxRepetitions = (this.#queryCounter + 1) * this.#resourceFetcher.recursionStepMultiplier;
+      const minRepetitions = hasZeroOrMore && !hasOneOrMore ? 0 : 1;
 
       // Generate paths with different repetition counts
-      for (let repetitions = 1; repetitions <= maxRepetitions; repetitions++) {
+      for (let repetitions = minRepetitions; repetitions <= maxRepetitions; repetitions++) {
         const expandedPath: Path = [];
 
         for (const segment of this.#path) {
-          if (segment.quantifier === "zeroOrMore") {
+          if (segment.quantifier === "oneOrMore" || segment.quantifier === "zeroOrMore") {
             // Repeat the segment based on current repetition count
             for (let i = 0; i < repetitions; i++) {
+              expandedPath.push({
+                ...segment,
+                quantifier: "one",
+              });
+            }
+          } else {
+            expandedPath.push(segment);
+          }
+        }
+
+        expandedPaths.push(expandedPath);
+      }
+    } else if (hasZeroOrOne) {
+      // For zeroOrOne, generate exactly 2 paths: one without (0 repetitions) and one with (1 repetition)
+      for (let repetitions = 0; repetitions <= 1; repetitions++) {
+        const expandedPath: Path = [];
+
+        for (const segment of this.#path) {
+          if (segment.quantifier === "zeroOrOne") {
+            // Include the segment only if repetitions is 1
+            if (repetitions === 1) {
               expandedPath.push({
                 ...segment,
                 quantifier: "one",

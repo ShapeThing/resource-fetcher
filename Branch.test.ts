@@ -192,13 +192,13 @@ Deno.test("reverse path segment inside a sequence toQueryPatterns", () => {
   ]);
 });
 
-Deno.test("zeroOrMore path segment with a counter of 0 toQueryPatterns", () => {
+Deno.test("oneOrMore path segment with a counter of 0 toQueryPatterns", () => {
   const branch = new Branch({
     depth: 0,
     resourceFetcher,
     path: [
       {
-        quantifier: "zeroOrMore",
+        quantifier: "oneOrMore",
         start: "subject",
         end: "object",
         predicates: [rf("rest")],
@@ -227,7 +227,7 @@ Deno.test("zeroOrMore path segment with a counter of 0 toQueryPatterns", () => {
 });
 
 Deno.test(
-  "sequence and zeroOrMore path segment with a counter of 0 toQueryPatterns",
+  "sequence and oneOrMore path segment with a counter of 0 toQueryPatterns",
   () => {
     const branch = new Branch({
       depth: 0,
@@ -240,7 +240,7 @@ Deno.test(
           predicates: [rf("toBe")],
         },
         {
-          quantifier: "zeroOrMore",
+          quantifier: "oneOrMore",
           start: "subject",
           end: "object",
           predicates: [rf("rest")],
@@ -271,3 +271,286 @@ Deno.test(
     ]);
   }
 );
+
+Deno.test(
+  "sequence and oneOrMore path segment with a counter of 1 toQueryPatterns",
+  () => {
+    const branch = new Branch({
+      depth: 0,
+      queryCounter: 1,
+      resourceFetcher,
+      path: [
+        {
+          quantifier: "one",
+          start: "subject",
+          end: "object",
+          predicates: [rf("toBe")],
+        },
+        {
+          quantifier: "oneOrMore",
+          start: "subject",
+          end: "object",
+          predicates: [rf("rest")],
+        },
+      ],
+    });
+
+    const patterns = branch.toQueryPatterns();
+    assertEquals(patterns, [
+      {
+        node_0: rf("resource"),
+        predicate_1: rf("toBe"),
+        predicate_2: rf("rest"),
+      },
+      {
+        node_0: rf("resource"),
+        predicate_1: rf("toBe"),
+        predicate_2: rf("rest"),
+        predicate_3: rf("rest"),
+      },
+      {
+        node_0: rf("resource"),
+        predicate_1: rf("toBe"),
+        predicate_2: rf("rest"),
+        predicate_3: rf("rest"),
+        predicate_4: rf("rest"),
+      },
+      {
+        node_0: rf("resource"),
+        predicate_1: rf("toBe"),
+        predicate_2: rf("rest"),
+        predicate_3: rf("rest"),
+        predicate_4: rf("rest"),
+        predicate_5: rf("rest"),
+      },
+      {
+        node_0: rf("resource"),
+        predicate_1: rf("toBe"),
+        predicate_2: rf("rest"),
+        predicate_3: rf("rest"),
+        predicate_4: rf("rest"),
+        predicate_5: rf("rest"),
+        predicate_6: rf("rest"),
+      },
+      {
+        node_0: rf("resource"),
+        predicate_1: rf("toBe"),
+        predicate_2: rf("rest"),
+        predicate_3: rf("rest"),
+        predicate_4: rf("rest"),
+        predicate_5: rf("rest"),
+        predicate_6: rf("rest"),
+        predicate_7: rf("rest"),
+      },
+    ]);
+  }
+);
+
+Deno.test("oneOrMore path segment with recursionStepMultiplier of 2", () => {
+  const customResourceFetcher = new ResourceFetcher({
+    resourceIri: rf("resource"),
+    recursionStepMultiplier: 2,
+  });
+
+  const branch = new Branch({
+    depth: 0,
+    resourceFetcher: customResourceFetcher,
+    path: [
+      {
+        quantifier: "oneOrMore",
+        start: "subject",
+        end: "object",
+        predicates: [rf("rest")],
+      },
+    ],
+  });
+
+  const patterns = branch.toQueryPatterns();
+  assertEquals(patterns, [
+    {
+      node_0: rf("resource"),
+      predicate_1: rf("rest"),
+    },
+    {
+      node_0: rf("resource"),
+      predicate_1: rf("rest"),
+      predicate_2: rf("rest"),
+    },
+  ]);
+});
+
+Deno.test("zeroOrMore path segment with a counter of 0 toQueryPatterns", () => {
+  const branch = new Branch({
+    depth: 0,
+    resourceFetcher,
+    path: [
+      {
+        quantifier: "zeroOrMore",
+        start: "subject",
+        end: "object",
+        predicates: [rf("rest")],
+      },
+    ],
+  });
+
+  const patterns = branch.toQueryPatterns();
+  assertEquals(patterns, [
+    {
+      node_0: rf("resource"),
+    },
+    {
+      node_0: rf("resource"),
+      predicate_1: rf("rest"),
+    },
+    {
+      node_0: rf("resource"),
+      predicate_1: rf("rest"),
+      predicate_2: rf("rest"),
+    },
+    {
+      node_0: rf("resource"),
+      predicate_1: rf("rest"),
+      predicate_2: rf("rest"),
+      predicate_3: rf("rest"),
+    },
+  ]);
+});
+
+Deno.test("zeroOrMore path segment with a counter of 1 toQueryPatterns", () => {
+  const branch = new Branch({
+    depth: 0,
+    queryCounter: 1,
+    resourceFetcher,
+    path: [
+      {
+        quantifier: "zeroOrMore",
+        start: "subject",
+        end: "object",
+        predicates: [rf("rest")],
+      },
+    ],
+  });
+
+  const patterns = branch.toQueryPatterns();
+  assertEquals(patterns, [
+    {
+      node_0: rf("resource"),
+    },
+    {
+      node_0: rf("resource"),
+      predicate_1: rf("rest"),
+    },
+    {
+      node_0: rf("resource"),
+      predicate_1: rf("rest"),
+      predicate_2: rf("rest"),
+    },
+    {
+      node_0: rf("resource"),
+      predicate_1: rf("rest"),
+      predicate_2: rf("rest"),
+      predicate_3: rf("rest"),
+    },
+    {
+      node_0: rf("resource"),
+      predicate_1: rf("rest"),
+      predicate_2: rf("rest"),
+      predicate_3: rf("rest"),
+      predicate_4: rf("rest"),
+    },
+    {
+      node_0: rf("resource"),
+      predicate_1: rf("rest"),
+      predicate_2: rf("rest"),
+      predicate_3: rf("rest"),
+      predicate_4: rf("rest"),
+      predicate_5: rf("rest"),
+    },
+    {
+      node_0: rf("resource"),
+      predicate_1: rf("rest"),
+      predicate_2: rf("rest"),
+      predicate_3: rf("rest"),
+      predicate_4: rf("rest"),
+      predicate_5: rf("rest"),
+      predicate_6: rf("rest"),
+    },
+  ]);
+});
+
+Deno.test("zeroOrOne path segment toQueryPatterns", () => {
+  const branch = new Branch({
+    depth: 0,
+    resourceFetcher,
+    path: [
+      {
+        quantifier: "zeroOrOne",
+        start: "subject",
+        end: "object",
+        predicates: [rf("maybe")],
+      },
+    ],
+  });
+
+  const patterns = branch.toQueryPatterns();
+  assertEquals(patterns, [
+    {
+      node_0: rf("resource"),
+    },
+    {
+      node_0: rf("resource"),
+      predicate_1: rf("maybe"),
+    },
+  ]);
+});
+
+Deno.test("Double zeroOrOne path segment toQueryPatterns", () => {
+  const branch = new Branch({
+    depth: 0,
+    resourceFetcher,
+    path: [
+      {
+        quantifier: "zeroOrOne",
+        start: "subject",
+        end: "object",
+        predicates: [rf("maybe")],
+      },
+      {
+        quantifier: "zeroOrOne",
+        start: "subject",
+        end: "object",
+        predicates: [rf("maybe2")],
+      },
+      {
+        quantifier: "one",
+        start: "subject",
+        end: "object",
+        predicates: [rf("toBe")],
+      },
+    ],
+  });
+
+  const patterns = branch.toQueryPatterns();
+  assertEquals(patterns, [
+    {
+      node_0: rf("resource"),
+      predicate_1: rf("toBe"),
+    },
+    {
+      node_0: rf("resource"),
+      predicate_1: rf("maybe"),
+      predicate_2: rf("toBe"),
+    },
+    {
+      node_0: rf("resource"),
+      predicate_1: rf("maybe2"),
+      predicate_2: rf("toBe"),
+    },
+    {
+      node_0: rf("resource"),
+      predicate_1: rf("maybe2"),
+      predicate_2: rf("maybe2"),
+      predicate_3: rf("toBe"),
+    },
+  ]);
+});
