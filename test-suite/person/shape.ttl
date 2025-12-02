@@ -1,0 +1,165 @@
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix sh: <http://www.w3.org/ns/shacl#> .
+@prefix schema: <https://schema.org/> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix dash: <http://datashapes.org/dash#> .
+@prefix stsr: <http://ontology.shapething.com/shacl-renderer#> .
+@prefix faker: <https://fakerjs.dev/> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix : <https://example.org/> .
+
+:PersonShape
+  a stsr:Shape, sh:NodeShape, stsr:Faker ;
+  sh:targetClass schema:Person ;
+  sh:closed true ;
+  sh:name "Persoon"@nl, "Person"@en ;
+  dash:stem <../Mensen> ;
+  stsr:icon "stash:person"^^<https://iconify.design> ;
+  stsr:filenameSuggestion ( schema:givenName " " schema:familyName ) ;
+  sh:ignoredProperties (stsr:label) ;
+
+  sh:property [
+    sh:name "Ouder Voornaam"@nl, "Parent Given name"@en ;
+    sh:group <#name> ;
+    sh:path ([ sh:inversePath schema:parentOf ] [ sh:alternativePath ( schema:givenName schema:name ) ]) ;
+    sh:datatype xsd:string ;
+  ];
+
+  sh:property [
+    sh:name "Ouder"@nl, "Parent"@en ;
+    sh:group <#name> ;
+    sh:path [ sh:inversePath schema:parentOf ] ;
+  ];
+
+  sh:property [
+    sh:name "Middelnaam"@nl, "Middle name"@en ;
+    sh:group <#name> ;
+    sh:path schema:additionalName	 ;
+    faker:generator faker:person.middleName ;
+    sh:maxCount 1;
+    sh:datatype xsd:string ;
+  ];
+
+  sh:property [
+    sh:name "Achternaam"@nl, "Family name"@en ;
+    sh:group <#name> ;
+    sh:path schema:familyName ;
+    faker:generator faker:person.lastName ;
+    sh:minCount 1;
+    sh:maxCount 1;
+    sh:datatype xsd:string ;
+  ];
+
+  sh:property [
+    sh:name "Geslacht"@nl, "Gender"@en ;
+    sh:group <#general> ;
+    sh:in ( schema:Male schema:Female ) ;
+    sh:maxCount 1;
+    sh:minCount 1;
+    sh:path schema:gender ;
+  ];
+
+  sh:property [
+    sh:name "Adres"@nl, "Address"@en ;
+    sh:order 4 ;
+    sh:path schema:address ;
+    sh:maxCount 1 ;
+    sh:minCount 1;
+    sh:group <#general> ;
+    sh:node :addressShape ;
+    sh:nodeKind sh:BlankNode ;
+  ];
+
+.
+
+:addressShape
+    a sh:NodeShape, stsr:SubShape ;
+    sh:targetClass schema:PostalAddress ;
+    sh:closed true ;
+    sh:name "Address"@en, "Adres"@nl ;
+  	sh:ignoredProperties (rdf:type) ;
+
+    sh:property [
+        sh:name "Straatnaam"@nl, "Street"@en ;
+        sh:group <#street-and-housenumber> ;
+        sh:path schema:streetAddress ;
+        faker:generator faker:location.street ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+
+        sh:property [
+            sh:name "Huisnummer"@nl, "House number"@en ;
+            sh:path schema:number ;
+            sh:datatype xsd:integer;
+            sh:minCount 1 ;
+            sh:maxCount 1 ;
+        ] ;
+
+        sh:property [
+            sh:name "Straatnaam"@nl, "Street name"@en ;
+            sh:path schema:street ;
+            sh:datatype xsd:string ;
+            sh:minCount 1 ;
+            sh:maxCount 1 ;
+        ] ;
+
+    ] ;
+
+    sh:property [
+        sh:name "Postcode"@nl, "Zipcode"@en ;
+        sh:path schema:postalCode ;
+        sh:group <#street-and-housenumber> ;
+        faker:generator faker:location.zipCode ;
+        sh:datatype xsd:string ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+    ] ;
+
+    sh:property [
+        sh:name "Plaats"@nl, "Locality"@en ;
+        sh:path schema:addressLocality ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+    ] ;
+
+    sh:property [
+        sh:name "Land"@nl, "Country"@en ;
+        sh:path schema:addressCountry ;
+        faker:generator faker:location.country ;
+        sh:group <#world> ;
+        sh:datatype xsd:string ;
+        sh:maxCount 1 ;
+    ] .
+
+<#general>
+	a sh:PropertyGroup, stsr:CollapsiblePropertyGroup ;
+  sh:name "Algemeen"@nl, "General"@en ;
+	sh:order 1 .
+
+<#death>
+	a sh:PropertyGroup, stsr:CollapsiblePropertyGroup ;
+  sh:name "Overlijden"@nl, "Death"@en ;
+	sh:order 2 .
+
+
+<#name>
+	a sh:PropertyGroup, stsr:HorizontalPropertyGroup ;
+  sh:group <#general> ;
+	sh:order 1 .
+
+<#dates>
+	a sh:PropertyGroup, stsr:HorizontalPropertyGroup ;
+  sh:group <#general> ;
+	sh:order 2 .
+
+<#street-and-housenumber>
+	a sh:PropertyGroup, stsr:HorizontalPropertyGroup ;
+	sh:order 2 .
+
+<#world>
+	a sh:PropertyGroup, stsr:HorizontalPropertyGroup ;
+	sh:order 3 .
+
+schema:Male sh:name "Man"@nl, "Man"@en .
+schema:Female sh:name "Vrouw"@nl, "Female"@en .

@@ -1,0 +1,6 @@
+@prefix : <https://example.org/> .
+
+:thing :sequenceOne [
+  :sequenceTwo true ;
+] ;
+a :Thing .

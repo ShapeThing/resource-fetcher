@@ -1,0 +1,16 @@
+@prefix ex: <https://example.org/> .
+
+ex:thing
+    ex:level2 [ ex:some "thing" ], [ ex:some "thing2" ] ;
+    ex:lorem "Ipsum" ;
+    ex:foo (
+        [
+            ex:bar "baz" ;
+            ex:qux "quux" ;
+            ex:empty []
+        ]
+        [
+    ex:bar "baz1" ;
+    ex:qux "quux2"
+  ]
+    ) .

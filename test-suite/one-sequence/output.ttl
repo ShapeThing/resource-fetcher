@@ -1,0 +1,7 @@
+@prefix ex: <https://example.org/> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+ex:thing a ex:Thing ;
+  ex:sequenceOne [
+    ex:sequenceTwo true
+  ] .
