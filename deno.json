@@ -1,5 +1,8 @@
 {
   "imports": {
+    "@comunica/query-sparql": "npm:@comunica/query-sparql@^4.5.0",
+    "@comunica/types": "npm:@comunica/types@^4.5.0",
+    "@jeswr/pretty-turtle": "npm:@jeswr/pretty-turtle@^1.8.2",
     "@rdfjs/data-model": "npm:@rdfjs/data-model@^2.1.1",
     "@rdfjs/environment": "npm:@rdfjs/environment@^1.0.0",
     "@rdfjs/namespace": "npm:@rdfjs/namespace@^2.0.1",

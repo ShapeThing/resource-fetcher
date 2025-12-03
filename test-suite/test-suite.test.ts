@@ -1,15 +1,17 @@
 import { assertEquals } from "@std/assert";
 import { join, dirname } from "@std/path";
 import { ResourceFetcher } from "../ResourceFetcher.ts";
-import dataFactory from '@rdfjs/data-model'
+import dataFactory from "@rdfjs/data-model";
+import { QueryEngine } from "@comunica/query-sparql";
+import { write } from '@jeswr/pretty-turtle';
 
 interface TestCase {
   name: string;
   path: string;
-  iri?: string;
-  steps?: number;
-  input?: string;
-  output?: string;
+  iri: string;
+  steps: number;
+  input: string;
+  output: string;
   shapeIri?: string;
   shapeDefinition?: string;
 }
@@ -63,10 +65,10 @@ async function discoverTestCases(baseDir: string): Promise<TestCase[]> {
     testCases.push({
       name: name.replace(".only", ""),
       path: testPath,
-      iri: iri?.trim(),
-      steps: stepsText ? parseInt(stepsText.trim()) : undefined,
-      input,
-      output,
+      iri: iri?.trim() ?? '',
+      steps: stepsText ? parseInt(stepsText.trim()) : 0,
+      input: input ?? '',
+      output: output ?? '',
       shapeIri: shapeIri?.trim(),
       shapeDefinition,
     });
@@ -93,11 +95,21 @@ for (const testCase of testCases) {
       throw new Error(`Missing output.ttl in ${testCase.path}`);
     }
 
+    if (!testCase.steps) {
+      throw new Error(`Missing steps.txt in ${testCase.path}`);
+    }
+
     const resourceFetcher = new ResourceFetcher({
       resourceIri: dataFactory.namedNode(testCase.iri),
+      engine: new QueryEngine(),
+      sources: [testCase.input]
     });
 
-    const results = await resourceFetcher.execute()
-    console.log(results);
+    const results = await resourceFetcher.execute();
+    const outputTurtle = await write(results, {
+      ordered: true,
+    });
+
+    assertEquals(outputTurtle.trim(), testCase.output.trim());
   });
 }

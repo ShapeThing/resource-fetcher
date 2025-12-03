@@ -2,8 +2,9 @@ import { assertEquals } from "@std/assert";
 import { Branch } from "../core/Branch.ts";
 import { ResourceFetcher } from "../ResourceFetcher.ts";
 import { rf } from "../helpers/namespaces.ts";
+import { QueryEngine } from "@comunica/query-sparql";
 
-const resourceFetcher = new ResourceFetcher({ resourceIri: rf("resource") });
+const resourceFetcher = new ResourceFetcher({ resourceIri: rf("resource"), engine: new QueryEngine() });
 
 Deno.test("single path segment toQueryPatterns", () => {
   const branch = new Branch({
@@ -350,6 +351,7 @@ Deno.test("oneOrMore path segment with recursionStepMultiplier of 2", () => {
   const customResourceFetcher = new ResourceFetcher({
     resourceIri: rf("resource"),
     recursionStepMultiplier: 2,
+    engine: new QueryEngine(),
   });
 
   const branch = new Branch({
