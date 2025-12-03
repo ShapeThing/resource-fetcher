@@ -1,7 +1,7 @@
 import { Quad, Quad_Subject } from "@rdfjs/types";
-import { Path } from "./core/parsePath.ts";
-import { ResourceFetcher } from "./ResourceFetcher.ts";
-import { cartesianProduct } from "./helpers/cartesianProduct.ts";
+import { Path } from "./parsePath.ts";
+import { ResourceFetcher } from "../ResourceFetcher.ts";
+import { cartesianProduct } from "../helpers/cartesianProduct.ts";
 
 export type QueryPattern = Record<string, Quad_Subject>;
 

@@ -3,6 +3,8 @@
   "specifiers": {
     "jsr:@std/assert@1": "1.0.16",
     "jsr:@std/internal@^1.0.12": "1.0.12",
+    "jsr:@std/internal@^1.0.9": "1.0.12",
+    "jsr:@std/path@^1.0.8": "1.1.1",
     "npm:@rdfjs/data-model@^2.1.1": "2.1.1",
     "npm:@rdfjs/environment@1": "1.0.0",
     "npm:@rdfjs/namespace@^2.0.1": "2.0.1",
@@ -13,11 +15,17 @@
     "@std/assert@1.0.16": {
       "integrity": "6a7272ed1eaa77defe76e5ff63ca705d9c495077e2d5fd0126d2b53fc5bd6532",
       "dependencies": [
-        "jsr:@std/internal"
+        "jsr:@std/internal@^1.0.12"
       ]
     },
     "@std/internal@1.0.12": {
       "integrity": "972a634fd5bc34b242024402972cd5143eac68d8dffaca5eaa4dba30ce17b027"
+    },
+    "@std/path@1.1.1": {
+      "integrity": "fe00026bd3a7e6a27f73709b83c607798be40e20c81dde655ce34052fd82ec76",
+      "dependencies": [
+        "jsr:@std/internal@^1.0.9"
+      ]
     }
   },
   "npm": {
@@ -72,6 +80,7 @@
   "workspace": {
     "dependencies": [
       "jsr:@std/assert@1",
+      "jsr:@std/path@^1.0.8",
       "npm:@rdfjs/data-model@^2.1.1",
       "npm:@rdfjs/environment@1",
       "npm:@rdfjs/namespace@^2.0.1",

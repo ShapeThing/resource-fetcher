@@ -5,6 +5,7 @@
     "@rdfjs/namespace": "npm:@rdfjs/namespace@^2.0.1",
     "@rdfjs/types": "npm:@rdfjs/types@^2.0.1",
     "@std/assert": "jsr:@std/assert@1",
+    "@std/path": "jsr:@std/path@^1.0.8",
     "sparqljs": "npm:sparqljs@^3.7.3"
   },
   "lint": {

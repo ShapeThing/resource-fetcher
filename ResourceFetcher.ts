@@ -17,4 +17,12 @@ export class ResourceFetcher {
     get recursionStepMultiplier(): number {
         return this.#recursionStepMultiplier;
     }
+
+    async execute () {
+
+    }
+
+    async * step () {
+
+    }
 }

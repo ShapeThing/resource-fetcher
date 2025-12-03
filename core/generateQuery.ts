@@ -1,4 +1,4 @@
-import type { QueryPattern } from "../Branch.ts";
+import type { QueryPattern } from "./Branch.ts";
 import type { Quad_Subject } from "@rdfjs/types";
 
 const serializeTerm = (term: Quad_Subject): string => {

@@ -1,7 +1,7 @@
 import { assertEquals } from "@std/assert";
-import { Branch } from "./Branch.ts";
-import { ResourceFetcher } from "./ResourceFetcher.ts";
-import { rf } from "./helpers/namespaces.ts";
+import { Branch } from "../core/Branch.ts";
+import { ResourceFetcher } from "../ResourceFetcher.ts";
+import { rf } from "../helpers/namespaces.ts";
 
 const resourceFetcher = new ResourceFetcher({ resourceIri: rf("resource") });
 
