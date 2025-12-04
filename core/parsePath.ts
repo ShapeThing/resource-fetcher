@@ -2,7 +2,7 @@
  * This file is taken from npm:shacl-engine.
  */
 import type { NamedNode, Quad_Predicate } from "@rdfjs/types";
-import type { Grapoi } from "./Grapoi.ts";
+import type { Grapoi } from "../helpers/Grapoi.ts";
 import { nonNullable } from "../helpers/nonNullable.ts";
 import * as ns from "../helpers/namespaces.ts";
 

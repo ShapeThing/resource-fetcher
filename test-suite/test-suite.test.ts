@@ -3,7 +3,12 @@ import { join, dirname } from "@std/path";
 import { ResourceFetcher } from "../ResourceFetcher.ts";
 import dataFactory from "@rdfjs/data-model";
 import { QueryEngine } from "@comunica/query-sparql";
-import { write } from '@jeswr/pretty-turtle';
+import { write } from "@jeswr/pretty-turtle";
+import { Parser } from "n3";
+import datasetFactory from "@rdfjs/dataset";
+import Grapoi from "../helpers/Grapoi.ts";
+import grapoi from "grapoi";
+import * as prefixes from "../helpers/namespaces.ts";
 
 interface TestCase {
   name: string;
@@ -23,6 +28,13 @@ async function readFileIfExists(path: string): Promise<string | undefined> {
     return undefined;
   }
 }
+
+const serializedSource = (value: string) => ({
+  type: 'serialized',
+  value,
+  mediaType: 'text/turtle',
+  baseIRI: 'http://example.org/'
+})
 
 async function discoverTestCases(baseDir: string): Promise<TestCase[]> {
   const testCases: TestCase[] = [];
@@ -65,10 +77,10 @@ async function discoverTestCases(baseDir: string): Promise<TestCase[]> {
     testCases.push({
       name: name.replace(".only", ""),
       path: testPath,
-      iri: iri?.trim() ?? '',
+      iri: iri?.trim() ?? "",
       steps: stepsText ? parseInt(stepsText.trim()) : 0,
-      input: input ?? '',
-      output: output ?? '',
+      input: input ?? "",
+      output: output ?? "",
       shapeIri: shapeIri?.trim(),
       shapeDefinition,
     });
@@ -98,16 +110,38 @@ for (const testCase of testCases) {
     if (!testCase.steps) {
       throw new Error(`Missing steps.txt in ${testCase.path}`);
     }
+    let shapesPointer: Grapoi | undefined = undefined;
+
+    if (testCase.shapeDefinition) {
+      const parser = new Parser();
+      const quads = parser.parse(testCase.shapeDefinition);
+      const dataset = datasetFactory.dataset();
+      for (const quad of quads) {
+        dataset.add(quad);
+      }
+      shapesPointer = grapoi({
+        dataset,
+        factory: dataFactory,
+        term: testCase.shapeIri
+          ? dataFactory.namedNode(testCase.shapeIri)
+          : undefined,
+      });
+    }
 
     const resourceFetcher = new ResourceFetcher({
       resourceIri: dataFactory.namedNode(testCase.iri),
       engine: new QueryEngine(),
-      sources: [testCase.input]
+      sources: [serializedSource(testCase.input)],
+      shapesPointer,
     });
 
     const results = await resourceFetcher.execute();
+
     const outputTurtle = await write(results, {
       ordered: true,
+      prefixes: Object.fromEntries(
+        Object.entries(prefixes).map(([key, ns]) => [key, ns().value])
+      ),
     });
 
     assertEquals(outputTurtle.trim(), testCase.output.trim());

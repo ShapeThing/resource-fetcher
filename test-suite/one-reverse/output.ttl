@@ -1,5 +1,5 @@
-@prefix schema: <https://schema.org/> .
 @prefix ex: <https://example.org/> .
+@prefix schema: <https://schema.org/> .
 
 ex:allanDoyle a schema:Person .
 
