@@ -2,6 +2,7 @@ import { Quad, Quad_Subject } from "@rdfjs/types";
 import { Path } from "./parsePath.ts";
 import { ResourceFetcher } from "../ResourceFetcher.ts";
 import { cartesianProduct } from "../helpers/cartesianProduct.ts";
+import { throws } from "node:assert";
 
 export type QueryPattern = Record<string, Quad_Subject>;
 
@@ -64,6 +65,10 @@ export class Branch {
       return [this];
     }
     return this.#children.flatMap((child) => child.#getLeafBranches());
+  }
+
+  getFirstPredicateInPath(): Quad_Subject[] {
+    return this.#path[0].predicates
   }
 
   #getPathToRoot(): Path {
