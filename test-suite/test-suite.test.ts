@@ -137,8 +137,6 @@ for (const testCase of testCases) {
 
     const { results, steps } = await resourceFetcher.execute();
 
-    console.log(steps);
-
     const outputTurtle = await write(results, {
       ordered: true,
       prefixes: Object.fromEntries(
@@ -147,5 +145,6 @@ for (const testCase of testCases) {
     });
 
     assertEquals(outputTurtle.trim(), testCase.output.trim());
+    assertEquals(steps, testCase.steps);
   });
 }

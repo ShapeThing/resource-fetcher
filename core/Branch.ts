@@ -75,13 +75,13 @@ export class Branch {
   }
 
   createChildBranchesByDataPredicates(predicates: NamedNode[]) {
-    const filteredPredicates = predicates.filter((predicate => {
-      const childStartsWithSamePredicate = this.#children.some(child => {
+    const filteredPredicates = predicates.filter((predicate) => {
+      const childStartsWithSamePredicate = this.#children.some((child) => {
         const firstPredicates = child.getFirstPredicatesInPath();
-        return firstPredicates.some(p => p.value === predicate.value);
+        return firstPredicates.some((p) => p.value === predicate.value);
       });
       return !childStartsWithSamePredicate;
-    }));
+    });
 
     const dataBranches = [...filteredPredicates].map((predicate) => {
       const path: Path = [
@@ -259,22 +259,18 @@ export class Branch {
     if (this.#children.length === 0 && !this.#done) {
       const predicates = new Set<string>();
 
-      // Get all quads for blank node objects (this requires looking at the full dataset)
+      // Get all blank node objects for CBD expansion
       const blankNodes = quads
         .filter((q) => q.object.termType === "BlankNode")
         .map((q) => q.object);
 
-      // If no blank nodes, mark as done
-      if (blankNodes.length === 0) {
-        this.#done = NO_BLANK_NODES;
-        return;
-      }
-
       // For each blank node, find its outgoing predicates in the dataset
       for (const blankNode of blankNodes) {
-        const blankNodePointer = grapoi({ factory: dataFactory, dataset }).node(blankNode);
+        const blankNodePointer = grapoi({ factory: dataFactory, dataset }).node(
+          blankNode
+        );
         const blankNodeQuads = [...blankNodePointer.out().quads()];
-        
+
         for (const quad of blankNodeQuads) {
           predicates.add(quad.predicate.value);
         }
@@ -286,6 +282,14 @@ export class Branch {
           [...predicates].map((p) => dataFactory.namedNode(p))
         );
       }
+
+      // Check for shaped resources (named nodes that have sh:node shapes)
+      // TODO: Implement shape-based resource fetching
+      // For now, if no blank nodes and no children created, mark as done
+      if (blankNodes.length === 0 && this.#children.length === 0) {
+        this.#done = NO_BLANK_NODES;
+        return;
+      }
       // If predicates.size === 0, we have blank nodes but don't know their predicates yet
       // Don't mark as done - wait for next step to fetch that data
     }
@@ -296,19 +300,46 @@ export class Branch {
     }
 
     // Mark as done if all children are done
-    if (this.#children.length > 0 && this.#children.every(child => child.#done)) {
+    if (
+      this.#children.length > 0 &&
+      this.#children.every((child) => child.#done)
+    ) {
       this.#done = NO_BLANK_NODES;
+    }
+
+    // Detect if we're stuck (same results for 3 consecutive steps)
+    if (this.#results.length >= 3 && !this.#done) {
+      const last3 = this.#results.slice(-3);
+      const allSameLength = last3.every(
+        (r) => r.quads.length === last3[0].quads.length
+      );
+      if (allSameLength && last3[0].quads.length > 0) {
+        // Check if the quads are actually the same (comparing subjects and predicates)
+        const quadsEqual = (q1: Quad[], q2: Quad[]) => {
+          if (q1.length !== q2.length) return false;
+          return q1.every(
+            (quad, i) =>
+              quad.subject.value === q2[i]?.subject.value &&
+              quad.predicate.value === q2[i]?.predicate.value &&
+              quad.object.value === q2[i]?.object.value
+          );
+        };
+
+        if (
+          quadsEqual(last3[0].quads, last3[1].quads) &&
+          quadsEqual(last3[1].quads, last3[2].quads)
+        ) {
+          this.#done = SAME_CONSECUTIVE_RESULT;
+        }
+      }
     }
   }
 
   getResults(): Quad[] {
     const myQuads = this.#results.at(-1)?.quads ?? [];
     const childQuads = this.#children.flatMap((child) => child.getResults());
-    
-    return [
-      ...myQuads,
-      ...childQuads,
-    ];
+
+    return [...myQuads, ...childQuads];
   }
 
   debug(): string {
@@ -318,10 +349,12 @@ export class Branch {
       )
       .join(" / ");
 
-    const childrenDebug = this.#children.map((child) => {
-      const childLines = child.debug().split("\n");
-      return childLines.map(line => "  " + line).join("\n");
-    }).join("\n");
+    const childrenDebug = this.#children
+      .map((child) => {
+        const childLines = child.debug().split("\n");
+        return childLines.map((line) => "  " + line).join("\n");
+      })
+      .join("\n");
 
     return `${this.#done ? "✔" : "⏱"} ${path} ${this.#done ? `(${this.#done})` : ""}${childrenDebug ? "\n" + childrenDebug : ""}`;
   }

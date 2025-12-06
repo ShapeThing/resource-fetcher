@@ -12,6 +12,13 @@ import datasetFactory from "@rdfjs/dataset";
 
 export type OurQuad = Quad & { isLeaf?: boolean; isReverse?: boolean };
 
+/**
+ * ResourceFetcher class to fetch RDF resources with recursive branching.
+ * TODO
+ * - If you select a certain person with a shape, and that person has a friend,
+ *  how do you determine where to stop? Currently it will just keep going.
+ */
+
 export class ResourceFetcher {
   #resourceIri: Quad_Subject;
   #recursionStepMultiplier: number;
@@ -68,17 +75,17 @@ export class ResourceFetcher {
       this.#accumulatedDataset.add(quad);
     }
     this.#processStepResults(this.#accumulatedDataset, step);
-    this.#debug();
+    // this.#debug();
 
     while (step < maxSteps && !this.#allBranchesDone()) {
       step++;
-      stepQuads = await this.#nextStep(step);
+      stepQuads = await this.#nextStep();
       // Accumulate quads from this step
       for (const quad of stepQuads) {
         this.#accumulatedDataset.add(quad);
       }
       this.#processStepResults(this.#accumulatedDataset, step);
-      this.#debug();
+      // this.#debug();
     }
 
     return {
@@ -170,7 +177,7 @@ export class ResourceFetcher {
     return generateQuery(queryPatterns);
   }
 
-  async #nextStep(step: number) {
+  async #nextStep() {
     const queryPatterns = this.#rootBranches.flatMap((branch) =>
       branch.toQueryPatterns()
     );

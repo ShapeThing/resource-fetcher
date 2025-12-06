@@ -3,4 +3,5 @@
 
 ex:allanDoyle a schema:Person .
 
-ex:otherAllan schema:parentOf ex:allanDoyle .
+ex:otherAllan a schema:Person ;
+  schema:parentOf ex:allanDoyle .
