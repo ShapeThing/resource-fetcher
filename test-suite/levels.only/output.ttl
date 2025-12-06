@@ -1,10 +1,10 @@
-@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
 @prefix ex: <https://example.org/> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
 
 ex:thing ex:foo ([
     ex:bar "baz" ;
-    ex:qux "quux" ;
-    ex:empty []
+    ex:empty [] ;
+    ex:qux "quux"
   ] [
     ex:bar "baz1" ;
     ex:qux "quux2"

@@ -40,28 +40,36 @@ const generateTriplePatterns = (pattern: QueryPattern): string => {
   const keys = Object.keys(pattern).sort();
   const triples: string[] = [];
 
-  // If only node_0 exists (no predicates), add a default triple pattern
+  let nodeCounter = 0;
+
+  // If only node_0 exists (no predicates), start with a default triple pattern
   if (keys.length === 1 && keys[0] === "node_0") {
     triples.push(`?node_0 ?predicate_1 ?node_1.`);
-    return triples.join("\n      ");
-  }
+    nodeCounter = 1;
+  } else {
+    // Process all predicate keys
+    for (let i = 0; i < keys.length; i++) {
+      const key = keys[i];
 
-  let nodeCounter = 0;
-  for (let i = 0; i < keys.length; i++) {
-    const key = keys[i];
-
-    if (key.startsWith("predicate_")) {
-      const currentNode = `?node_${nodeCounter}`;
-      const nextNode = `?node_${nodeCounter + 1}`;
-      triples.push(`${currentNode} ?${key} ${nextNode}.`);
-      nodeCounter++;
-    } else if (key.startsWith("reverse_predicate_")) {
-      const currentNode = `?node_${nodeCounter}`;
-      const nextNode = `?node_${nodeCounter + 1}`;
-      triples.push(`${nextNode} ?${key} ${currentNode}.`);
-      nodeCounter++;
+      if (key.startsWith("predicate_")) {
+        const currentNode = `?node_${nodeCounter}`;
+        const nextNode = `?node_${nodeCounter + 1}`;
+        triples.push(`${currentNode} ?${key} ${nextNode}.`);
+        nodeCounter++;
+      } else if (key.startsWith("reverse_predicate_")) {
+        const currentNode = `?node_${nodeCounter}`;
+        const nextNode = `?node_${nodeCounter + 1}`;
+        triples.push(`${nextNode} ?${key} ${currentNode}.`);
+        nodeCounter++;
+      }
     }
   }
+
+  // Overfetch one level: add one more triple pattern
+  const overfetchNode = `?node_${nodeCounter}`;
+  const overfetchNextNode = `?node_${nodeCounter + 1}`;
+  const overfetchPredicate = `?predicate_${nodeCounter + 1}`;
+  triples.push(`${overfetchNode} ${overfetchPredicate} ${overfetchNextNode}.`);
 
   return triples.join("\n      ");
 };
@@ -83,10 +91,16 @@ export const generateQuery = (patterns: QueryPattern[]): string => {
   for (const group of groupedPatterns.values()) {
     const valuesClause = generateValuesClause(group);
     const triplePatterns = generateTriplePatterns(group[0]);
+    
+    // Split triple patterns into required and optional (overfetch)
+    const patternLines = triplePatterns.split("\n      ");
+    const requiredPatterns = patternLines.slice(0, -1).join("\n      ");
+    const overfetchPattern = patternLines[patternLines.length - 1];
 
     const block = `    {
       ${valuesClause}
-      ${triplePatterns}
+      ${requiredPatterns}
+      OPTIONAL { ${overfetchPattern} }
     }`;
     unions.push(block);
   }

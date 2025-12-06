@@ -1,8 +1,11 @@
-import { Quad, Quad_Subject } from "@rdfjs/types";
+import { DatasetCore, NamedNode, Quad, Quad_Subject } from "@rdfjs/types";
 import { Path } from "./parsePath.ts";
 import { ResourceFetcher } from "../ResourceFetcher.ts";
 import { cartesianProduct } from "../helpers/cartesianProduct.ts";
-import { throws } from "node:assert";
+import grapoi from "grapoi";
+import Grapoi from "../helpers/Grapoi.ts";
+import dataFactory from "@rdfjs/data-model";
+import { context } from "../helpers/context.ts";
 
 export type QueryPattern = Record<string, Quad_Subject>;
 
@@ -15,9 +18,22 @@ type BranchOptions = {
   children?: Branch[];
 };
 
+export type StepResults = {
+  step: number;
+  quads: Quad[];
+};
+
+const NO_RESULTS = "no-results";
+const NO_BLANK_NODES = "no-blank-nodes";
+const SAME_CONSECUTIVE_RESULT = "same-consecutive-result";
+
 export class Branch {
-  #done: boolean = false;
-  #results: Quad[] = [];
+  #done:
+    | false
+    | typeof NO_RESULTS
+    | typeof NO_BLANK_NODES
+    | typeof SAME_CONSECUTIVE_RESULT = false;
+  #results: StepResults[] = [];
   #path: Path = [];
   #depth: number;
   #children: Branch[] = [];
@@ -58,21 +74,52 @@ export class Branch {
     return [];
   }
 
-  createChildBranches() {}
+  createChildBranchesByDataPredicates(predicates: NamedNode[]) {
+    const filteredPredicates = predicates.filter((predicate => {
+      const childStartsWithSamePredicate = this.#children.some(child => {
+        const firstPredicates = child.getFirstPredicatesInPath();
+        return firstPredicates.some(p => p.value === predicate.value);
+      });
+      return !childStartsWithSamePredicate;
+    }));
 
-  #getLeafBranches(): Branch[] {
-    if (this.#children.length === 0) {
-      return [this];
-    }
-    return this.#children.flatMap((child) => child.#getLeafBranches());
+    const dataBranches = [...filteredPredicates].map((predicate) => {
+      const path: Path = [
+        {
+          predicates: [predicate],
+          quantifier: "one",
+          start: "subject",
+          end: "object",
+        },
+      ];
+
+      return new Branch({
+        depth: this.#depth + 1,
+        resourceFetcher: this.#resourceFetcher,
+        path,
+        parent: this,
+      });
+    });
+
+    this.#children.push(...dataBranches);
+    return dataBranches;
   }
 
-  getFirstPredicateInPath(): Quad_Subject[] {
-    return this.#path[0].predicates
+  getLeafBranches(): Branch[] {
+    if (this.#children.length === 0) return [this];
+    return this.#children.flatMap((child) => child.getLeafBranches());
   }
 
-  #getPathToRoot(): Path {
-    const pathSegments: Path = [...this.#path];
+  getFirstPredicatesInPath(): Quad_Subject[] {
+    return this.#path[0].predicates;
+  }
+
+  isDone(): boolean {
+    return this.#done !== false;
+  }
+
+  getPathToRoot(includeSelf: boolean = true): Path {
+    const pathSegments: Path = includeSelf ? [...this.#path] : [];
     let current: Branch | undefined = this.#parent;
 
     while (current) {
@@ -163,11 +210,12 @@ export class Branch {
   toQueryPatterns(): QueryPattern[] {
     // If this branch has children, get patterns from all leaf branches
     if (this.#children.length > 0) {
-      const leafBranches = this.#getLeafBranches();
+      const leafBranches = this.getLeafBranches();
       const allPatterns: QueryPattern[] = [];
 
       for (const leaf of leafBranches) {
-        const pathToRoot = leaf.#getPathToRoot();
+        if (leaf.#done) continue;
+        const pathToRoot = leaf.getPathToRoot();
         const expandedPaths = this.#expandPathWithQuantifiers(pathToRoot);
 
         for (const path of expandedPaths) {
@@ -189,16 +237,92 @@ export class Branch {
     return allPatterns;
   }
 
-  createChildForTestingPurposes(child: BranchOptions) {
-    const newChild = new Branch({
-      ...child,
-      parent: this,
-    });
-    this.#children.push(newChild);
-    return newChild;
-  }
-
   get children(): Branch[] {
     return this.#children;
+  }
+
+  process(dataset: DatasetCore, step: number) {
+    const dataPointer: Grapoi = grapoi({ factory: dataFactory, dataset });
+    const parentsPath = this.getPathToRoot(false);
+    const parentPointer = dataPointer.executeAll(parentsPath).distinct();
+    const thisBranchDataPointer = parentPointer.executeAll(this.#path);
+    const quads = [...thisBranchDataPointer.quads()];
+    this.#results.push({ step, quads });
+
+    // Mark as done if no quads found
+    if (!quads.length) {
+      this.#done = NO_RESULTS;
+      return;
+    }
+
+    // Create children BEFORE processing them (if no children exist yet)
+    if (this.#children.length === 0 && !this.#done) {
+      const predicates = new Set<string>();
+
+      // Get all quads for blank node objects (this requires looking at the full dataset)
+      const blankNodes = quads
+        .filter((q) => q.object.termType === "BlankNode")
+        .map((q) => q.object);
+
+      // If no blank nodes, mark as done
+      if (blankNodes.length === 0) {
+        this.#done = NO_BLANK_NODES;
+        return;
+      }
+
+      // For each blank node, find its outgoing predicates in the dataset
+      for (const blankNode of blankNodes) {
+        const blankNodePointer = grapoi({ factory: dataFactory, dataset }).node(blankNode);
+        const blankNodeQuads = [...blankNodePointer.out().quads()];
+        
+        for (const quad of blankNodeQuads) {
+          predicates.add(quad.predicate.value);
+        }
+      }
+
+      // CBD expansion for blank nodes
+      if (predicates.size > 0) {
+        this.createChildBranchesByDataPredicates(
+          [...predicates].map((p) => dataFactory.namedNode(p))
+        );
+      }
+      // If predicates.size === 0, we have blank nodes but don't know their predicates yet
+      // Don't mark as done - wait for next step to fetch that data
+    }
+
+    // Process children AFTER creating them
+    for (const child of this.#children) {
+      child.process(dataset, step);
+    }
+
+    // Mark as done if all children are done
+    if (this.#children.length > 0 && this.#children.every(child => child.#done)) {
+      this.#done = NO_BLANK_NODES;
+    }
+  }
+
+  getResults(): Quad[] {
+    const myQuads = this.#results.at(-1)?.quads ?? [];
+    const childQuads = this.#children.flatMap((child) => child.getResults());
+    
+    return [
+      ...myQuads,
+      ...childQuads,
+    ];
+  }
+
+  debug(): string {
+    const path = this.#path
+      .map((segment) =>
+        segment.predicates.map((p) => context.compactIri(p.value)).join(" | ")
+      )
+      .join(" / ");
+
+    const childrenDebug = this.#children.map((child) => {
+      const childLines = child.debug().split("\n");
+      return childLines.map(line => "  " + line).join("\n");
+    }).join("\n");
+
+    return `${this.#done ? "✔" : "⏱"} ${path} ${this.#done ? `(${this.#done})` : ""}${childrenDebug ? "\n" + childrenDebug : ""}`;
   }
 }

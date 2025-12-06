@@ -1,6 +1,5 @@
-import { NamedNode, Quad, Quad_Subject } from "@rdfjs/types";
+import { DatasetCore, NamedNode, Quad, Quad_Subject } from "@rdfjs/types";
 import type { IQueryEngine, QuerySourceUnidentified } from "@comunica/types";
-import Grapoi from "./helpers/Grapoi.ts";
 import { allShapeSubShapes } from "./helpers/allShapeSubShapes.ts";
 import { sh } from "./helpers/namespaces.ts";
 import parsePath, { Path } from "./core/parsePath.ts";
@@ -8,6 +7,8 @@ import { Branch, QueryPattern } from "./core/Branch.ts";
 import { generateQuery } from "./core/generateQuery.ts";
 import { numberedBindingsToQuads } from "./core/numberedBindingsToQuads.ts";
 import dataFactory from "@rdfjs/data-model";
+import Grapoi from "./helpers/Grapoi.ts";
+import datasetFactory from "@rdfjs/dataset";
 
 export type OurQuad = Quad & { isLeaf?: boolean; isReverse?: boolean };
 
@@ -18,6 +19,7 @@ export class ResourceFetcher {
   #sources: QuerySourceUnidentified[] = [];
   #shapesPointer?: Grapoi;
   #rootBranches: Branch[] = [];
+  #accumulatedDataset: DatasetCore<OurQuad>;
 
   constructor({
     resourceIri,
@@ -37,6 +39,7 @@ export class ResourceFetcher {
     this.#engine = engine;
     this.#sources = sources;
     this.#shapesPointer = shapesPointer;
+    this.#accumulatedDataset = datasetFactory.dataset<OurQuad>();
   }
 
   get #engineOptions() {
@@ -46,6 +49,7 @@ export class ResourceFetcher {
       baseIRI: "http://example.org/",
     };
   }
+
   get resourceIri(): Quad_Subject {
     return this.#resourceIri;
   }
@@ -55,17 +59,46 @@ export class ResourceFetcher {
   }
 
   async execute() {
-    return await this.#step1();
+    let step = 1;
+    const maxSteps = 40; // Safety limit
+
+    let stepQuads = await this.#step1();
+    // Accumulate quads from this step
+    for (const quad of stepQuads) {
+      this.#accumulatedDataset.add(quad);
+    }
+    this.#processStepResults(this.#accumulatedDataset, step);
+    this.#debug();
+
+    while (step < maxSteps && !this.#allBranchesDone()) {
+      step++;
+      stepQuads = await this.#nextStep(step);
+      // Accumulate quads from this step
+      for (const quad of stepQuads) {
+        this.#accumulatedDataset.add(quad);
+      }
+      this.#processStepResults(this.#accumulatedDataset, step);
+      this.#debug();
+    }
+
+    return {
+      results: this.#rootBranches.flatMap((branch) => branch.getResults()),
+      steps: step,
+    };
   }
 
-  #getInitialQuery() {
-    const queryPatterns = [
-      // This pattern does the initial ?s ?p ?o for the resource IRI.
-      { node_0: this.#resourceIri } as QueryPattern,
-      // If there are shapes, get their patterns too.
-      ...this.#rootBranches.flatMap((branch) => branch.toQueryPatterns()),
-    ];
-    return generateQuery(queryPatterns);
+  #allBranchesDone(): boolean {
+    return this.#rootBranches.every((branch) => branch.isDone());
+  }
+
+  #processStepResults(quads: DatasetCore, step: number) {
+    for (const branch of this.#rootBranches) {
+      branch.process(quads, step);
+    }
+  }
+
+  #debug() {
+    console.info(this.#rootBranches.map((branch) => branch.debug()).join("\n"));
   }
 
   async #step1() {
@@ -87,6 +120,7 @@ export class ResourceFetcher {
       initialQuery,
       this.#engineOptions
     );
+
     const bindings = await response.toArray();
     const quads = numberedBindingsToQuads(bindings);
 
@@ -95,7 +129,7 @@ export class ResourceFetcher {
       (quad) => quad.subject.value === this.#resourceIri.value
     );
     const firstLevelShapePredicates = this.#rootBranches.flatMap((branch) =>
-      branch.getFirstPredicateInPath()
+      branch.getFirstPredicatesInPath()
     );
 
     const firstLevelDataPredicates = new Set(
@@ -126,5 +160,27 @@ export class ResourceFetcher {
     return quads;
   }
 
-  async *step() {}
+  #getInitialQuery() {
+    const queryPatterns = [
+      // This pattern does the initial ?s ?p ?o for the resource IRI.
+      { node_0: this.#resourceIri } as QueryPattern,
+      // If there are shapes, get their patterns too.
+      ...this.#rootBranches.flatMap((branch) => branch.toQueryPatterns()),
+    ];
+    return generateQuery(queryPatterns);
+  }
+
+  async #nextStep(step: number) {
+    const queryPatterns = this.#rootBranches.flatMap((branch) =>
+      branch.toQueryPatterns()
+    );
+    const query = generateQuery(queryPatterns);
+    const response = await this.#engine.queryBindings(
+      query,
+      this.#engineOptions
+    );
+    const bindings = await response.toArray();
+    const quads = numberedBindingsToQuads(bindings);
+    return quads;
+  }
 }

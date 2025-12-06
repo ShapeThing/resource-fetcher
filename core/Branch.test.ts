@@ -597,44 +597,9 @@ Deno.test("nested branches with each a simple Path toQueryPatterns", () => {
     ],
   });
 
-  const firstChild = rootBranch.createChildForTestingPurposes({
-    depth: 0,
-    resourceFetcher,
-    path: [
-      {
-        quantifier: "one",
-        start: "subject",
-        end: "object",
-        predicates: [rf("b1")],
-      },
-    ],
-  });
-
-  rootBranch.createChildForTestingPurposes({
-    depth: 0,
-    resourceFetcher,
-    path: [
-      {
-        quantifier: "one",
-        start: "subject",
-        end: "object",
-        predicates: [rf("b2")],
-      },
-    ],
-  });
-
-  firstChild.createChildForTestingPurposes({
-    depth: 0,
-    resourceFetcher,
-    path: [
-      {
-        quantifier: "one",
-        start: "subject",
-        end: "object",
-        predicates: [rf("c1")],
-      },
-    ],
-  })
+  const [firstChild] = rootBranch.createChildBranchesByDataPredicates([rf("b1")]);
+  rootBranch.createChildBranchesByDataPredicates([rf("b2")]);
+  firstChild.createChildBranchesByDataPredicates([rf("c1")]);
 
   const patterns = rootBranch.toQueryPatterns();
   assertEquals(patterns, [

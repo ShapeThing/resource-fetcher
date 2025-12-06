@@ -135,7 +135,9 @@ for (const testCase of testCases) {
       shapesPointer,
     });
 
-    const results = await resourceFetcher.execute();
+    const { results, steps } = await resourceFetcher.execute();
+
+    console.log(steps);
 
     const outputTurtle = await write(results, {
       ordered: true,
