@@ -1,11 +1,14 @@
 import { DatasetCore, NamedNode, Quad, Quad_Subject } from "@rdfjs/types";
-import { Path } from "./parsePath.ts";
+import parsePath, { Path } from "./parsePath.ts";
 import { ResourceFetcher } from "../ResourceFetcher.ts";
 import { cartesianProduct } from "../helpers/cartesianProduct.ts";
 import grapoi from "grapoi";
 import Grapoi from "../helpers/Grapoi.ts";
 import dataFactory from "@rdfjs/data-model";
 import { context } from "../helpers/context.ts";
+import { allShapeSubShapes } from "../helpers/allShapeSubShapes.ts";
+import { sh } from "../helpers/namespaces.ts";
+import datasetFactory from "@rdfjs/dataset";
 
 export type QueryPattern = Record<string, Quad_Subject>;
 
@@ -14,6 +17,8 @@ type BranchOptions = {
   parent?: Branch;
   resourceFetcher: ResourceFetcher;
   path: Path;
+  propertyPointer?: Grapoi;
+  type: "data" | "shape";
   queryCounter?: number;
   children?: Branch[];
 };
@@ -26,12 +31,14 @@ export type StepResults = {
 const NO_RESULTS = "no-results";
 const NO_BLANK_NODES = "no-blank-nodes";
 const SAME_CONSECUTIVE_RESULT = "same-consecutive-result";
+const ALL_CHILDREN_DONE = "all-children-done";
 
 export class Branch {
   #done:
     | false
     | typeof NO_RESULTS
     | typeof NO_BLANK_NODES
+    | typeof ALL_CHILDREN_DONE
     | typeof SAME_CONSECUTIVE_RESULT = false;
   #results: StepResults[] = [];
   #path: Path = [];
@@ -40,6 +47,8 @@ export class Branch {
   #parent?: Branch;
   #resourceFetcher: ResourceFetcher;
   #queryCounter: number;
+  #type: "data" | "shape";
+  #propertyPointer?: Grapoi;
 
   constructor({
     depth,
@@ -48,13 +57,17 @@ export class Branch {
     path,
     queryCounter,
     children,
+    propertyPointer,
+    type,
   }: BranchOptions) {
     this.#depth = depth;
     this.#parent = parent;
     this.#resourceFetcher = resourceFetcher;
     this.#path = path;
     this.#queryCounter = queryCounter ?? 0;
+    this.#type = type;
     this.#children = children ?? [];
+    this.#propertyPointer = propertyPointer;
   }
 
   get depth(): number {
@@ -74,11 +87,30 @@ export class Branch {
     return [];
   }
 
-  createChildBranchesByDataPredicates(predicates: NamedNode[]) {
-    const filteredPredicates = predicates.filter((predicate) => {
+  createChildBranchesByDataPredicates(quads: Quad[]) {
+    // CBD expansion for blank nodes, only unique ones are ultimately added.
+    const predicates = new Set<string>();
+
+    // Get all blank node objects for CBD expansion
+    const blankNodes = quads
+      .filter((q) => q.object.termType === "BlankNode")
+      .map((q) => q.object);
+
+    // For each blank node, find its outgoing predicates in the dataset
+    for (const blankNode of blankNodes) {
+      const blankNodeQuads = quads.filter(
+        (q) => q.subject.value === blankNode.value
+      );
+
+      for (const quad of blankNodeQuads) {
+        predicates.add(quad.predicate.value);
+      }
+    }
+
+    const filteredPredicates = [...predicates].filter((predicate) => {
       const childStartsWithSamePredicate = this.#children.some((child) => {
         const firstPredicates = child.getFirstPredicatesInPath();
-        return firstPredicates.some((p) => p.value === predicate.value);
+        return firstPredicates.some((p) => p.value === predicate);
       });
       return !childStartsWithSamePredicate;
     });
@@ -86,7 +118,7 @@ export class Branch {
     const dataBranches = [...filteredPredicates].map((predicate) => {
       const path: Path = [
         {
-          predicates: [predicate],
+          predicates: [dataFactory.namedNode(predicate)],
           quantifier: "one",
           start: "subject",
           end: "object",
@@ -98,11 +130,42 @@ export class Branch {
         resourceFetcher: this.#resourceFetcher,
         path,
         parent: this,
+        type: "data",
       });
     });
 
     this.#children.push(...dataBranches);
     return dataBranches;
+  }
+
+  createChildBranchesByPropertyPointer() {
+    const shaclPropertiesToFollow = this.#propertyPointer
+      ? allShapeSubShapes(this.#propertyPointer).out(sh("property"))
+      : null;
+
+    const shapeBranches = (shaclPropertiesToFollow ?? []).map(
+      (propertyPointer: Grapoi) => {
+        const path = parsePath(propertyPointer.out(sh("path")));
+        return new Branch({
+          path,
+          depth: this.#depth + 1,
+          propertyPointer,
+          resourceFetcher: this.#resourceFetcher,
+          parent: this,
+          type: "shape",
+        });
+      }
+    );
+
+    for (const branch of shapeBranches) {
+      const identity = JSON.stringify(branch.#path);
+      const identityExistsAsChild = this.children
+        .map((child) => JSON.stringify(child.#path))
+        .find((otherIdentity) => otherIdentity === identity);
+      if (!identityExistsAsChild) {
+        this.#children.push(branch);
+      }
+    }
   }
 
   getLeafBranches(): Branch[] {
@@ -241,13 +304,28 @@ export class Branch {
     return this.#children;
   }
 
+  get done () {
+    return !!this.#done
+  }
+
   process(dataset: DatasetCore, step: number) {
     const dataPointer: Grapoi = grapoi({ factory: dataFactory, dataset });
     const parentsPath = this.getPathToRoot(false);
     const parentPointer = dataPointer.executeAll(parentsPath).distinct();
     const thisBranchDataPointer = parentPointer.executeAll(this.#path);
-    const quads = [...thisBranchDataPointer.quads()];
+    const quads = [
+      // Quads from the current branch.
+      ...thisBranchDataPointer.quads(),
+      // Quads from the over fetch.
+      ...thisBranchDataPointer.out().quads(),
+    ];
     this.#results.push({ step, quads });
+
+    // Create branches for further property shapes
+    this.createChildBranchesByPropertyPointer();
+
+    // CBD expansion for blank nodes, only unique ones are ultimately added.
+    this.createChildBranchesByDataPredicates(quads);
 
     // Mark as done if no quads found
     if (!quads.length) {
@@ -255,44 +333,21 @@ export class Branch {
       return;
     }
 
-    // Create children BEFORE processing them (if no children exist yet)
-    if (this.#children.length === 0 && !this.#done) {
-      const predicates = new Set<string>();
+    const blankNodes = quads
+      .filter((q) => q.object.termType === "BlankNode")
+      .map((q) => q.object);
 
-      // Get all blank node objects for CBD expansion
-      const blankNodes = quads
-        .filter((q) => q.object.termType === "BlankNode")
-        .map((q) => q.object);
+    const hasNoBlankNodes =
+      blankNodes.length === 0 && this.#children.length === 0;
 
-      // For each blank node, find its outgoing predicates in the dataset
-      for (const blankNode of blankNodes) {
-        const blankNodePointer = grapoi({ factory: dataFactory, dataset }).node(
-          blankNode
-        );
-        const blankNodeQuads = [...blankNodePointer.out().quads()];
-
-        for (const quad of blankNodeQuads) {
-          predicates.add(quad.predicate.value);
-        }
-      }
-
-      // CBD expansion for blank nodes
-      if (predicates.size > 0) {
-        this.createChildBranchesByDataPredicates(
-          [...predicates].map((p) => dataFactory.namedNode(p))
-        );
-      }
-
-      // Check for shaped resources (named nodes that have sh:node shapes)
-      // TODO: Implement shape-based resource fetching
-      // For now, if no blank nodes and no children created, mark as done
-      if (blankNodes.length === 0 && this.#children.length === 0) {
-        this.#done = NO_BLANK_NODES;
-        return;
-      }
-      // If predicates.size === 0, we have blank nodes but don't know their predicates yet
-      // Don't mark as done - wait for next step to fetch that data
+    // Check for shaped resources (named nodes that have sh:node shapes)
+    // For now, if no blank nodes and no children created, mark as done
+    if (hasNoBlankNodes) {
+      this.#done = NO_BLANK_NODES;
+      return;
     }
+    // If predicates.size === 0, we have blank nodes but don't know their predicates yet
+    // Don't mark as done - wait for next step to fetch that data
 
     // Process children AFTER creating them
     for (const child of this.#children) {
@@ -301,44 +356,38 @@ export class Branch {
 
     // Mark as done if all children are done
     if (
-      this.#children.length > 0 &&
       this.#children.every((child) => child.#done)
     ) {
-      this.#done = NO_BLANK_NODES;
+      this.#done = ALL_CHILDREN_DONE;
     }
+
+
 
     // Detect if we're stuck (same results for 3 consecutive steps)
     if (this.#results.length >= 3 && !this.#done) {
-      const last3 = this.#results.slice(-3);
-      const allSameLength = last3.every(
-        (r) => r.quads.length === last3[0].quads.length
+      const lastSteps = this.#results.slice(-3);
+      const allSameLength = lastSteps.every(
+        (r) => r.quads.length === lastSteps[0].quads.length
       );
-      if (allSameLength && last3[0].quads.length > 0) {
-        // Check if the quads are actually the same (comparing subjects and predicates)
-        const quadsEqual = (q1: Quad[], q2: Quad[]) => {
-          if (q1.length !== q2.length) return false;
-          return q1.every(
-            (quad, i) =>
-              quad.subject.value === q2[i]?.subject.value &&
-              quad.predicate.value === q2[i]?.predicate.value &&
-              quad.object.value === q2[i]?.object.value
-          );
-        };
-
-        if (
-          quadsEqual(last3[0].quads, last3[1].quads) &&
-          quadsEqual(last3[1].quads, last3[2].quads)
-        ) {
-          this.#done = SAME_CONSECUTIVE_RESULT;
-        }
+      if (allSameLength && lastSteps[0].quads.length > 0) {
+        this.#done = SAME_CONSECUTIVE_RESULT;
       }
     }
   }
 
-  getResults(): Quad[] {
-    const myQuads = this.#results.at(-1)?.quads ?? [];
-    const childQuads = this.#children.flatMap((child) => child.getResults());
-
+  getResults(subjects: Quad_Subject[]): Quad[] {
+    const branchDataPointer = grapoi({
+      factory: dataFactory,
+      dataset: datasetFactory.dataset(this.#results.at(-1)?.quads),
+      terms: subjects,
+    });
+    const myQuads = [...branchDataPointer.executeAll(this.#path).quads()];
+    const nextSubjects = myQuads
+      .map((q) => (q.termType !== "Literal" ? q.object : undefined))
+      .filter(Boolean);
+    const childQuads = this.#children.flatMap((child) =>
+      child.getResults(nextSubjects)
+    );
     return [...myQuads, ...childQuads];
   }
 
@@ -356,6 +405,6 @@ export class Branch {
       })
       .join("\n");
 
-    return `${this.#done ? "✔" : "⏱"} ${path} ${this.#done ? `(${this.#done})` : ""}${childrenDebug ? "\n" + childrenDebug : ""}`;
+    return `${this.#done ? "✔" : "⏱"} ${path} ${this.#type.toUpperCase()} ${this.#done ? `(${this.#done})` : ""}${childrenDebug ? "\n" + childrenDebug : ""}`;
   }
 }

@@ -133,6 +133,7 @@ for (const testCase of testCases) {
       engine: new QueryEngine(),
       sources: [serializedSource(testCase.input)],
       shapesPointer,
+      debug: Deno.env.has('DEBUG')
     });
 
     const { results, steps } = await resourceFetcher.execute();

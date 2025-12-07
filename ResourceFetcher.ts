@@ -24,6 +24,7 @@ export class ResourceFetcher {
   #recursionStepMultiplier: number;
   #engine: IQueryEngine;
   #sources: QuerySourceUnidentified[] = [];
+  #debug?: boolean;
   #shapesPointer?: Grapoi;
   #rootBranches: Branch[] = [];
   #accumulatedDataset: DatasetCore<OurQuad>;
@@ -34,12 +35,14 @@ export class ResourceFetcher {
     engine,
     sources = [],
     shapesPointer,
+    debug,
   }: {
     resourceIri: Quad_Subject;
     recursionStepMultiplier?: number;
     engine: IQueryEngine;
     sources?: QuerySourceUnidentified[];
     shapesPointer?: Grapoi;
+    debug?: boolean;
   }) {
     this.#resourceIri = resourceIri;
     this.#recursionStepMultiplier = recursionStepMultiplier;
@@ -47,6 +50,7 @@ export class ResourceFetcher {
     this.#sources = sources;
     this.#shapesPointer = shapesPointer;
     this.#accumulatedDataset = datasetFactory.dataset<OurQuad>();
+    this.#debug = debug;
   }
 
   get #engineOptions() {
@@ -55,6 +59,10 @@ export class ResourceFetcher {
       unionDefaultGraph: true,
       baseIRI: "http://example.org/",
     };
+  }
+
+  get shapesPointer() {
+    return this.#shapesPointer;
   }
 
   get resourceIri(): Quad_Subject {
@@ -75,21 +83,23 @@ export class ResourceFetcher {
       this.#accumulatedDataset.add(quad);
     }
     this.#processStepResults(this.#accumulatedDataset, step);
-    // this.#debug();
+    this.debug();
 
     while (step < maxSteps && !this.#allBranchesDone()) {
       step++;
-      stepQuads = await this.#nextStep();
+      stepQuads = await this.#nextStep(step);
       // Accumulate quads from this step
       for (const quad of stepQuads) {
         this.#accumulatedDataset.add(quad);
       }
       this.#processStepResults(this.#accumulatedDataset, step);
-      // this.#debug();
+      this.debug();
     }
 
     return {
-      results: this.#rootBranches.flatMap((branch) => branch.getResults()),
+      results: this.#rootBranches.flatMap((branch) =>
+        branch.getResults([this.#resourceIri])
+      ),
       steps: step,
     };
   }
@@ -104,25 +114,36 @@ export class ResourceFetcher {
     }
   }
 
-  #debug() {
-    console.info(this.#rootBranches.map((branch) => branch.debug()).join("\n"));
+  debug() {
+    if (this.#debug) console.info(
+      this.#rootBranches.map((branch) => branch.debug()).join("\n") + "\n\n"
+    );
   }
 
   async #step1() {
     // If a shape pointer is provided, extract root shape paths and create branches.
     if (this.#shapesPointer) {
-      const properties = allShapeSubShapes(this.#shapesPointer).out(sh("path"));
-      const rootShapeBranchPaths = properties.map((pathPointer: Grapoi) =>
-        parsePath(pathPointer)
+      const properties = allShapeSubShapes(this.#shapesPointer)
+        .out(sh("property"))
+        .hasOut(sh("path"));
+      const rootShapeBranches: Branch[] = properties.map(
+        (propertyPointer: Grapoi) => {
+          const path = parsePath(propertyPointer.out(sh("path")));
+
+          return new Branch({
+            path,
+            depth: 1,
+            propertyPointer,
+            resourceFetcher: this,
+            type: "shape",
+          });
+        }
       );
-      this.#rootBranches.push(
-        ...rootShapeBranchPaths.map(
-          (path) => new Branch({ path, depth: 1, resourceFetcher: this })
-        )
-      );
+      this.#rootBranches.push(...rootShapeBranches);
     }
 
     const initialQuery = this.#getInitialQuery();
+    if (this.#debug) console.log(`%c${initialQuery}`, "color: yellow");
     const response = await this.#engine.queryBindings(
       initialQuery,
       this.#engineOptions
@@ -160,7 +181,12 @@ export class ResourceFetcher {
         },
       ];
 
-      return new Branch({ depth: 1, resourceFetcher: this, path });
+      return new Branch({
+        depth: 1,
+        resourceFetcher: this,
+        path,
+        type: "data",
+      });
     });
 
     this.#rootBranches.push(...rootDataBranches);
@@ -177,11 +203,13 @@ export class ResourceFetcher {
     return generateQuery(queryPatterns);
   }
 
-  async #nextStep() {
+  async #nextStep(step: number) {
     const queryPatterns = this.#rootBranches.flatMap((branch) =>
       branch.toQueryPatterns()
     );
     const query = generateQuery(queryPatterns);
+    if (this.#debug) console.log(`%c${query}`, "color: yellow");
+
     const response = await this.#engine.queryBindings(
       query,
       this.#engineOptions
