@@ -337,10 +337,11 @@ export class Branch {
     }
 
     // Mark as done if no quads found
-    // For SHAPE branches, wait at least one more step in case deeply nested data hasn't been fetched yet
-    // For DATA branches, mark as done immediately
+    // For SHAPE branches with depth > 2, wait at least one more step because
+    // deeply nested blank node data might not have been fetched yet
+    // For DATA branches or shallow SHAPE branches, mark as done immediately
     if (!quads.length) {
-      if (this.#type === "data" || step > 1) {
+      if (this.#type === "data" || this.#depth <= 2 || step > 1) {
         this.#done = NO_RESULTS;
       }
       return;
