@@ -1,1 +1,39 @@
-#
+@prefix ex: <https://example.org/> .
+@prefix schema: <https://schema.org/> .
+@prefix sh: <http://www.w3.org/ns/shacl#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+ex:allanDoyle a schema:Person ;
+  sh:shapesGraph ex:PersonShape ;
+  schema:additionalName "Reign" ;
+  schema:address ex:allanDoyleAddress ;
+  schema:birthDate "1999-05-29"^^xsd:date ;
+  schema:deathDate "1981-02-25"^^xsd:date ;
+  schema:familyName "Doyle" ;
+  schema:gender schema:Female ;
+  schema:givenName "Allan" ;
+  schema:knows [
+    a schema:Person ;
+    schema:familyName "Doe" ;
+    schema:givenName "Jane"
+  ], [
+    a schema:Person ;
+    schema:familyName "Baker" ;
+    schema:givenName "Dirk"
+  ] ;
+  schema:unknownProp "Woop" .
+
+ex:allanDoyleAddress schema:addressLocality [
+    schema:name "Green Bay"
+  ] ;
+  schema:postalCode "73137" ;
+  schema:streetAddress [
+    schema:number 15 ;
+    schema:street "S Front Street"
+  ], [
+    schema:number 152 ;
+    schema:street "S Front Street 2"
+  ] .
+
+ex:otherAllan schema:givenName "Allen" ;
+  schema:parentOf ex:allanDoyle .

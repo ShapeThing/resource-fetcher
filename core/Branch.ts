@@ -337,8 +337,12 @@ export class Branch {
     }
 
     // Mark as done if no quads found
+    // For SHAPE branches, wait at least one more step in case deeply nested data hasn't been fetched yet
+    // For DATA branches, mark as done immediately
     if (!quads.length) {
-      this.#done = NO_RESULTS;
+      if (this.#type === "data" || step > 1) {
+        this.#done = NO_RESULTS;
+      }
       return;
     }
 
@@ -390,7 +394,7 @@ export class Branch {
   getResults(subjects: Quad_Subject[]): Quad[] {
     const branchDataPointer = grapoi({
       factory: dataFactory,
-      // dataset: datasetFactory.dataset(this.#results.at(-1)?.quads ?? []),
+      // TODO this might give some cruft, lets check if we can improve it at a later time.
       dataset: datasetFactory.dataset(this.#results.flatMap(stepResults => stepResults.quads)),
       terms: subjects,
     });
