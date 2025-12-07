@@ -32,12 +32,14 @@ const NO_RESULTS = "no-results";
 const NO_BLANK_NODES = "no-blank-nodes";
 const SAME_CONSECUTIVE_RESULT = "same-consecutive-result";
 const ALL_CHILDREN_DONE = "all-children-done";
+const NO_CHILDREN = 'no-children'
 
 export class Branch {
   #done:
     | false
     | typeof NO_RESULTS
     | typeof NO_BLANK_NODES
+    | typeof NO_CHILDREN
     | typeof ALL_CHILDREN_DONE
     | typeof SAME_CONSECUTIVE_RESULT = false;
   #results: StepResults[] = [];
@@ -313,11 +315,13 @@ export class Branch {
     const parentsPath = this.getPathToRoot(false);
     const parentPointer = dataPointer.executeAll(parentsPath).distinct();
     const thisBranchDataPointer = parentPointer.executeAll(this.#path);
+    const pathQuads = [...thisBranchDataPointer.quads()];
+    const overFetchQuads = [...thisBranchDataPointer.out().quads()];
     const quads = [
       // Quads from the current branch.
-      ...thisBranchDataPointer.quads(),
+      ...pathQuads,
       // Quads from the over fetch.
-      ...thisBranchDataPointer.out().quads(),
+      ...overFetchQuads,
     ];
     this.#results.push({ step, quads });
 
@@ -327,13 +331,19 @@ export class Branch {
     // CBD expansion for blank nodes, only unique ones are ultimately added.
     this.createChildBranchesByDataPredicates(quads);
 
+    // Process children AFTER creating them
+    for (const child of this.#children) {
+      child.process(dataset, step);
+    }
+
     // Mark as done if no quads found
     if (!quads.length) {
       this.#done = NO_RESULTS;
       return;
     }
 
-    const blankNodes = quads
+    // Only check for blank nodes in the path quads, not the over-fetch
+    const blankNodes = pathQuads
       .filter((q) => q.object.termType === "BlankNode")
       .map((q) => q.object);
 
@@ -346,22 +356,24 @@ export class Branch {
       this.#done = NO_BLANK_NODES;
       return;
     }
-    // If predicates.size === 0, we have blank nodes but don't know their predicates yet
-    // Don't mark as done - wait for next step to fetch that data
-
-    // Process children AFTER creating them
-    for (const child of this.#children) {
-      child.process(dataset, step);
-    }
 
     // Mark as done if all children are done
+    // BUT only if we have children OR if we have no blank nodes
+    // (if we have blank nodes but no children, we need another step to fetch their data)
     if (
+      this.#children.length > 0 &&
       this.#children.every((child) => child.#done)
     ) {
       this.#done = ALL_CHILDREN_DONE;
+      return;
     }
 
-
+    // If we have no children but we have blank nodes, don't mark as done yet
+    // We need another step to fetch the blank node data
+    if (!this.#children.length && blankNodes.length === 0) {
+      this.#done = NO_CHILDREN;
+      return;
+    }
 
     // Detect if we're stuck (same results for 3 consecutive steps)
     if (this.#results.length >= 3 && !this.#done) {
@@ -378,12 +390,13 @@ export class Branch {
   getResults(subjects: Quad_Subject[]): Quad[] {
     const branchDataPointer = grapoi({
       factory: dataFactory,
-      dataset: datasetFactory.dataset(this.#results.at(-1)?.quads),
+      // dataset: datasetFactory.dataset(this.#results.at(-1)?.quads ?? []),
+      dataset: datasetFactory.dataset(this.#results.flatMap(stepResults => stepResults.quads)),
       terms: subjects,
     });
     const myQuads = [...branchDataPointer.executeAll(this.#path).quads()];
     const nextSubjects = myQuads
-      .map((q) => (q.termType !== "Literal" ? q.object : undefined))
+      .map((q) => (q.object.termType !== "Literal" ? q.object : undefined))
       .filter(Boolean);
     const childQuads = this.#children.flatMap((child) =>
       child.getResults(nextSubjects)
