@@ -16,7 +16,7 @@ c:ColorPalette a rdfs:Class ;
   sh:property [
     sh:name "Colors"@en ;
     sh:path sh:color ;
-    sh:in (c:Red c:Green c:Blue) ;
+    sh:in (c:Red c:Green c:Blue c:Yellow c:Pink) ;
   ] ;
 .
 
@@ -28,4 +28,10 @@ c:Green a c:Color ;
    .
 c:Blue a c:Color ;
   rdfs:label "Blue (label)"@en ;
+   .
+c:Yellow a c:Color ;
+  rdfs:label "Yellow (label)"@en ;
+   .
+c:Pink a c:Color ;
+  rdfs:label "Pink (label)"@en ;
    .

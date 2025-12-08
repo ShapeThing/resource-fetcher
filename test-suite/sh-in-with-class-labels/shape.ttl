@@ -20,4 +20,10 @@
   sh:property [
     sh:path ( sh:property sh:in [ sh:zeroOrMorePath rdf:rest ] rdf:first rdfs:label ) ;
   ] ;
+
+
+  sh:property [
+    sh:path ( sh:property sh:in [ sh:zeroOrMorePath rdf:rest ] rdf:rest ) ;
+  ] ;
+
 .

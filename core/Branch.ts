@@ -1,4 +1,4 @@
-import { DatasetCore, NamedNode, Quad, Quad_Subject } from "@rdfjs/types";
+import { DatasetCore, Quad, Quad_Subject } from "@rdfjs/types";
 import parsePath, { Path } from "./parsePath.ts";
 import { ResourceFetcher } from "../ResourceFetcher.ts";
 import { cartesianProduct } from "../helpers/cartesianProduct.ts";
@@ -32,7 +32,8 @@ const NO_RESULTS = "no-results";
 const NO_BLANK_NODES = "no-blank-nodes";
 const SAME_CONSECUTIVE_RESULT = "same-consecutive-result";
 const ALL_CHILDREN_DONE = "all-children-done";
-const NO_CHILDREN = 'no-children'
+const NO_CHILDREN = "no-children";
+const FINISHED_MORE = "finished-more";
 
 export class Branch {
   #done:
@@ -41,6 +42,7 @@ export class Branch {
     | typeof NO_BLANK_NODES
     | typeof NO_CHILDREN
     | typeof ALL_CHILDREN_DONE
+    | typeof FINISHED_MORE
     | typeof SAME_CONSECUTIVE_RESULT = false;
   #results: StepResults[] = [];
   #path: Path = [];
@@ -90,6 +92,16 @@ export class Branch {
   }
 
   createChildBranchesByDataPredicates(quads: Quad[]) {
+    if (
+      this.#path.some(
+        (segment) =>
+          segment.quantifier === "oneOrMore" ||
+          segment.quantifier === "zeroOrMore"
+      )
+    ) {
+      return [];
+    }
+
     // CBD expansion for blank nodes, only unique ones are ultimately added.
     const predicates = new Set<string>();
 
@@ -281,7 +293,8 @@ export class Branch {
       for (const leaf of leafBranches) {
         if (leaf.#done) continue;
         const pathToRoot = leaf.getPathToRoot();
-        const expandedPaths = this.#expandPathWithQuantifiers(pathToRoot);
+        // Use the leaf's queryCounter for expansion (important for recursive quantifiers)
+        const expandedPaths = leaf.#expandPathWithQuantifiers(pathToRoot);
 
         for (const path of expandedPaths) {
           allPatterns.push(...this.#buildPatternFromPath(path));
@@ -306,8 +319,8 @@ export class Branch {
     return this.#children;
   }
 
-  get done () {
-    return !!this.#done
+  get done() {
+    return !!this.#done;
   }
 
   process(dataset: DatasetCore, step: number) {
@@ -336,6 +349,44 @@ export class Branch {
       child.process(dataset, step);
     }
 
+    // For branches with recursive quantifiers (zeroOrMore, oneOrMore),
+    // check if we need to continue fetching more data
+    if (
+      this.#path.some(
+        (segment) =>
+          segment.quantifier === "oneOrMore" ||
+          segment.quantifier === "zeroOrMore"
+      )
+    ) {
+      let pointer = parentPointer;
+      for (const pathSegment of this.#path) {
+        pointer = pointer.execute(pathSegment);
+        if (
+          pathSegment.quantifier === "oneOrMore" ||
+          pathSegment.quantifier === "zeroOrMore"
+        ) {
+          const finished =
+            this.#results.length > 1 &&
+            this.#results.at(-1)!.quads.length ===
+              this.#results.at(-2)!.quads.length;
+
+          // Don't mark as finished if we have children that haven't been processed yet
+          // This handles cases like rdf:nil where we need to traverse from named nodes
+          const hasUnprocessedChildren = this.#children.some(
+            (child) => child.#results.length === 0
+          );
+
+          if (finished && !hasUnprocessedChildren) {
+            this.#done = FINISHED_MORE;
+            return;
+          } else {
+            this.#queryCounter = this.#queryCounter + 1;
+            return;
+          }
+        }
+      }
+    }
+
     // Mark as done if no quads found
     // For SHAPE branches with depth > 2, wait at least one more step because
     // deeply nested blank node data might not have been fetched yet
@@ -352,12 +403,12 @@ export class Branch {
       .filter((q) => q.object.termType === "BlankNode")
       .map((q) => q.object);
 
-    const hasNoBlankNodes =
+    // Don't mark as done if we have children (even if no blank nodes)
+    // The children might need to traverse from named nodes (e.g., rdf:nil in lists)
+    const hasNoBlankNodesAndNoChildren =
       blankNodes.length === 0 && this.#children.length === 0;
 
-    // Check for shaped resources (named nodes that have sh:node shapes)
-    // For now, if no blank nodes and no children created, mark as done
-    if (hasNoBlankNodes) {
+    if (hasNoBlankNodesAndNoChildren) {
       this.#done = NO_BLANK_NODES;
       return;
     }
@@ -396,7 +447,9 @@ export class Branch {
     const branchDataPointer = grapoi({
       factory: dataFactory,
       // TODO this might give some cruft, lets check if we can improve it at a later time.
-      dataset: datasetFactory.dataset(this.#results.flatMap(stepResults => stepResults.quads)),
+      dataset: datasetFactory.dataset(
+        this.#results.flatMap((stepResults) => stepResults.quads)
+      ),
       terms: subjects,
     });
     const myQuads = [...branchDataPointer.executeAll(this.#path).quads()];

@@ -14,9 +14,6 @@ export type OurQuad = Quad & { isLeaf?: boolean; isReverse?: boolean };
 
 /**
  * ResourceFetcher class to fetch RDF resources with recursive branching.
- * TODO
- * - If you select a certain person with a shape, and that person has a friend,
- *  how do you determine where to stop? Currently it will just keep going.
  */
 
 export class ResourceFetcher {
@@ -208,7 +205,7 @@ export class ResourceFetcher {
       branch.toQueryPatterns()
     );
     const query = generateQuery(queryPatterns);
-    if (this.#debug) console.log(`%c${query}`, "color: yellow");
+    if (this.#debug) console.log(`%c#${step}: ${query}`, "color: yellow");
 
     const response = await this.#engine.queryBindings(
       query,
