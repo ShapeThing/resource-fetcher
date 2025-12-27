@@ -84,14 +84,7 @@ export class Branch {
     return branch;
   }
 
-  /**
-   * Returns the IRIs of the shapes that target this branch.
-   */
-  matchTargets(): Quad[] {
-    return [];
-  }
-
-  createChildBranchesByDataPredicates(quads: Quad[]) {
+  createChildBranchesByDataQuads(quads: Quad[]) {
     if (
       this.#path.some(
         (segment) =>
@@ -342,7 +335,7 @@ export class Branch {
     this.createChildBranchesByPropertyPointer();
 
     // CBD expansion for blank nodes, only unique ones are ultimately added.
-    this.createChildBranchesByDataPredicates(quads);
+    this.createChildBranchesByDataQuads(quads);
 
     // Process children AFTER creating them
     for (const child of this.#children) {

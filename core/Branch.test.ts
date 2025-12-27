@@ -3,12 +3,14 @@ import { Branch } from "../core/Branch.ts";
 import { ResourceFetcher } from "../ResourceFetcher.ts";
 import { rf } from "../helpers/namespaces.ts";
 import { QueryEngine } from "@comunica/query-sparql";
+import dataFactory from '@rdfjs/data-model'
 
 const resourceFetcher = new ResourceFetcher({ resourceIri: rf("resource"), engine: new QueryEngine() });
 
 Deno.test("single path segment toQueryPatterns", () => {
   const branch = new Branch({
     depth: 0,
+    type: 'data',
     resourceFetcher,
     path: [
       {
@@ -32,6 +34,7 @@ Deno.test("single path segment toQueryPatterns", () => {
 Deno.test("alternative path segment toQueryPatterns", () => {
   const branch = new Branch({
     depth: 0,
+    type: 'data',
     resourceFetcher,
     path: [
       {
@@ -64,6 +67,7 @@ Deno.test("sequence path segment toQueryPatterns", () => {
   const branch = new Branch({
     depth: 0,
     resourceFetcher,
+    type: 'data',
     path: [
       {
         quantifier: "one",
@@ -96,6 +100,7 @@ Deno.test(
     const branch = new Branch({
       depth: 0,
       resourceFetcher,
+      type: 'data',
       path: [
         {
           quantifier: "one",
@@ -137,6 +142,7 @@ Deno.test("reverse path segment toQueryPatterns", () => {
   const branch = new Branch({
     depth: 0,
     resourceFetcher,
+    type: 'data',
     path: [
       {
         quantifier: "one",
@@ -160,6 +166,7 @@ Deno.test("reverse path segment inside a sequence toQueryPatterns", () => {
   const branch = new Branch({
     depth: 0,
     resourceFetcher,
+    type: 'data',
     path: [
       {
         quantifier: "one",
@@ -197,6 +204,7 @@ Deno.test("oneOrMore path segment with a counter of 0 toQueryPatterns", () => {
   const branch = new Branch({
     depth: 0,
     resourceFetcher,
+    type: 'data',
     path: [
       {
         quantifier: "oneOrMore",
@@ -233,6 +241,7 @@ Deno.test(
     const branch = new Branch({
       depth: 0,
       resourceFetcher,
+      type: 'data',
       path: [
         {
           quantifier: "one",
@@ -279,6 +288,7 @@ Deno.test(
     const branch = new Branch({
       depth: 0,
       queryCounter: 1,
+      type: 'data',
       resourceFetcher,
       path: [
         {
@@ -356,6 +366,7 @@ Deno.test("oneOrMore path segment with recursionStepMultiplier of 2", () => {
 
   const branch = new Branch({
     depth: 0,
+    type: 'data',
     resourceFetcher: customResourceFetcher,
     path: [
       {
@@ -385,6 +396,7 @@ Deno.test("zeroOrMore path segment with a counter of 0 toQueryPatterns", () => {
   const branch = new Branch({
     depth: 0,
     resourceFetcher,
+    type: 'data',
     path: [
       {
         quantifier: "zeroOrMore",
@@ -423,6 +435,7 @@ Deno.test("zeroOrMore path segment with a counter of 1 toQueryPatterns", () => {
     depth: 0,
     queryCounter: 1,
     resourceFetcher,
+    type: 'data',
     path: [
       {
         quantifier: "zeroOrMore",
@@ -484,6 +497,7 @@ Deno.test("zeroOrOne path segment toQueryPatterns", () => {
   const branch = new Branch({
     depth: 0,
     resourceFetcher,
+    type: 'data',
     path: [
       {
         quantifier: "zeroOrOne",
@@ -510,6 +524,7 @@ Deno.test("double zeroOrOne path segment toQueryPatterns", () => {
   const branch = new Branch({
     depth: 0,
     resourceFetcher,
+    type: 'data',
     path: [
       {
         quantifier: "zeroOrOne",
@@ -560,6 +575,7 @@ Deno.test("double zeroOrOne path segment toQueryPatterns", () => {
 Deno.test("reversed zeroOrOne path segment toQueryPatterns", () => {
   const branch = new Branch({
     depth: 0,
+    type: 'data',
     resourceFetcher,
     path: [
       {
@@ -587,6 +603,7 @@ Deno.test("nested branches with each a simple Path toQueryPatterns", () => {
   const rootBranch = new Branch({
     depth: 0,
     resourceFetcher,
+    type: 'data',
     path: [
       {
         quantifier: "one",
@@ -597,9 +614,11 @@ Deno.test("nested branches with each a simple Path toQueryPatterns", () => {
     ],
   });
 
-  const [firstChild] = rootBranch.createChildBranchesByDataPredicates([rf("b1")]);
-  rootBranch.createChildBranchesByDataPredicates([rf("b2")]);
-  firstChild.createChildBranchesByDataPredicates([rf("c1")]);
+  const a = dataFactory.blankNode()
+
+  const addedBranches = rootBranch.createChildBranchesByDataQuads([dataFactory.quad(rf("b1"), rf("b1"), a), dataFactory.quad(a, rf("b1"), dataFactory.blankNode())]);
+  rootBranch.createChildBranchesByDataQuads([dataFactory.quad(rf("b2"), rf("b2"), a), dataFactory.quad(a, rf("b2"), dataFactory.blankNode())]);
+  addedBranches[0].createChildBranchesByDataQuads([dataFactory.quad(rf("c1"), rf("c1"), a), dataFactory.quad(a, rf("c1"), dataFactory.blankNode())]);
 
   const patterns = rootBranch.toQueryPatterns();
   assertEquals(patterns, [

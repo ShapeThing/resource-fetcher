@@ -24,6 +24,7 @@ Deno.test("no segment to query", () => {
             (<https://resource-fetcher.shapething.com/#resource>)
         }
         ?node_0 ?predicate_1 ?node_1.
+        OPTIONAL { ?node_1 ?predicate_2 ?node_2. }
     }}}`)
   );
 });
@@ -42,7 +43,7 @@ Deno.test("single path segment to query", () => {
             (<https://resource-fetcher.shapething.com/#resource> <https://resource-fetcher.shapething.com/#predicateA>)
         }
         ?node_0 ?predicate_1 ?node_1.
-        ?node_1 ?predicate_2 ?node_2.
+        OPTIONAL { ?node_1 ?predicate_2 ?node_2. }
     }}}`)
   );
 });
@@ -63,7 +64,7 @@ Deno.test("single sequence path segment to query", () => {
         }
         ?node_0 ?predicate_1 ?node_1.
         ?node_1 ?predicate_2 ?node_2.
-        ?node_2 ?predicate_3 ?node_3.
+        OPTIONAL { ?node_2 ?predicate_3 ?node_3. }
     }}}`)
   );
 });
@@ -88,13 +89,13 @@ Deno.test("two unions query", () => {
         }
         ?node_0 ?predicate_1 ?node_1.
         ?node_1 ?predicate_2 ?node_2.
-        ?node_2 ?predicate_3 ?node_3.
+        OPTIONAL { ?node_2 ?predicate_3 ?node_3. }
     } UNION {
         VALUES (?node_0 ?predicate_1 ) {
             (<https://resource-fetcher.shapething.com/#resource> <https://resource-fetcher.shapething.com/#woop>)
         }
         ?node_0 ?predicate_1 ?node_1.
-        ?node_1 ?predicate_2 ?node_2.
+        OPTIONAL { ?node_1 ?predicate_2 ?node_2. }
     }}}`)
   );
 });
@@ -124,14 +125,14 @@ Deno.test("oneOrMore query", () => {
             (<https://resource-fetcher.shapething.com/#resource> <https://resource-fetcher.shapething.com/#rest>)
         }
         ?node_0 ?predicate_1 ?node_1.
-        ?node_1 ?predicate_2 ?node_2.
+        OPTIONAL { ?node_1 ?predicate_2 ?node_2. }
     } UNION {
         VALUES (?node_0 ?predicate_1 ?predicate_2) {
             (<https://resource-fetcher.shapething.com/#resource> <https://resource-fetcher.shapething.com/#rest> <https://resource-fetcher.shapething.com/#rest>)
         }
         ?node_0 ?predicate_1 ?node_1.
         ?node_1 ?predicate_2 ?node_2.
-        ?node_2 ?predicate_3 ?node_3.
+        OPTIONAL { ?node_2 ?predicate_3 ?node_3. }
     } UNION {
         VALUES (?node_0 ?predicate_1 ?predicate_2 ?predicate_3) {
             (<https://resource-fetcher.shapething.com/#resource> <https://resource-fetcher.shapething.com/#rest> <https://resource-fetcher.shapething.com/#rest> <https://resource-fetcher.shapething.com/#rest>)
@@ -139,7 +140,7 @@ Deno.test("oneOrMore query", () => {
         ?node_0 ?predicate_1 ?node_1.
         ?node_1 ?predicate_2 ?node_2.
         ?node_2 ?predicate_3 ?node_3.
-        ?node_3 ?predicate_4 ?node_4.
+        OPTIONAL { ?node_3 ?predicate_4 ?node_4. }
     }}}`)
   );
 });

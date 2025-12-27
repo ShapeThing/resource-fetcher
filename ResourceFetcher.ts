@@ -15,7 +15,6 @@ export type OurQuad = Quad & { isLeaf?: boolean; isReverse?: boolean };
 /**
  * ResourceFetcher class to fetch RDF resources with recursive branching.
  */
-
 export class ResourceFetcher {
   #resourceIri: Quad_Subject;
   #recursionStepMultiplier: number;
@@ -72,7 +71,7 @@ export class ResourceFetcher {
 
   async execute() {
     let step = 1;
-    const maxSteps = 40; // Safety limit
+    const maxSteps = 80; // Safety limit
 
     let stepQuads = await this.#step1();
     // Accumulate quads from this step
@@ -112,9 +111,10 @@ export class ResourceFetcher {
   }
 
   debug() {
-    if (this.#debug) console.info(
-      this.#rootBranches.map((branch) => branch.debug()).join("\n") + "\n\n"
-    );
+    if (this.#debug)
+      console.info(
+        this.#rootBranches.map((branch) => branch.debug()).join("\n") + "\n\n"
+      );
   }
 
   async #step1() {
@@ -148,7 +148,6 @@ export class ResourceFetcher {
 
     const bindings = await response.toArray();
     const quads = numberedBindingsToQuads(bindings);
-
     // Lets create data branches for the first level.
     const firstLevelQuads = [...quads].filter(
       (quad) => quad.subject.value === this.#resourceIri.value
@@ -212,7 +211,6 @@ export class ResourceFetcher {
       this.#engineOptions
     );
     const bindings = await response.toArray();
-    const quads = numberedBindingsToQuads(bindings);
-    return quads;
+    return numberedBindingsToQuads(bindings);
   }
 }
