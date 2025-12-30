@@ -144,3 +144,67 @@ Deno.test("oneOrMore query", () => {
     }}}`)
   );
 });
+
+Deno.test("zeroOrOne path segment with isList toQueryPatterns", () => {
+  const query = generateQuery([
+    {
+      node_0: rf("resource"),
+    },
+    {
+      node_0: rf("resource"),
+      predicate_isList_1: rf("maybe"),
+    },
+  ]);
+
+  assertEquals(
+    normalize(query),
+    normalize(`SELECT * WHERE {
+  GRAPH ?g {
+    {
+      VALUES ?node_0 {
+        <https://resource-fetcher.shapething.com/#resource>
+      }
+      ?node_0 ?predicate_1 ?node_1.
+      OPTIONAL { ?node_1 ?predicate_2 ?node_2. }
+    }
+    UNION
+    {
+      VALUES ?node_0 {
+        <https://resource-fetcher.shapething.com/#resource>
+      }
+      ?node_0 <https://resource-fetcher.shapething.com/#maybe>/<http://www.w3.org/1999/02/22-rdf-syntax-ns#rest>*/<http://www.w3.org/1999/02/22-rdf-syntax-ns#first> ?node_list_1.
+      OPTIONAL { ?node_list_1 ?predicate_2 ?node_2. }
+    }
+  }
+}
+`)
+  );
+});
+
+Deno.test("zeroOrOne path segment with isList and other predicates before toQueryPatterns", () => {
+  const query = generateQuery([
+    {
+      node_0: rf("resource"),
+      predicate_1: rf("random"),
+      predicate_isList_1: rf("list"),
+    },
+  ]);
+
+  assertEquals(
+    normalize(query),
+    normalize(`
+      SELECT * WHERE {
+  GRAPH ?g {
+    {
+      VALUES (?node_0 ?predicate_1) {
+        (<https://resource-fetcher.shapething.com/#resource> <https://resource-fetcher.shapething.com/#random>)
+      }
+      ?node_0 ?predicate_1 ?node_1.
+      ?node_1 <https://resource-fetcher.shapething.com/#list>/<http://www.w3.org/1999/02/22-rdf-syntax-ns#rest>*/<http://www.w3.org/1999/02/22-rdf-syntax-ns#first> ?node_list_2.
+      OPTIONAL { ?node_list_2 ?predicate_3 ?node_3. }
+    }
+  }
+}
+`)
+  );
+});

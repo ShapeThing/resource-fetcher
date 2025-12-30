@@ -18,12 +18,10 @@
   sh:name "Shape"@en, "Vorm"@nl ;
 
   sh:property [
-    sh:path ( sh:property sh:in [ sh:zeroOrMorePath rdf:rest ] rdf:first rdfs:label ) ;
-  ] ;
-
-
-  sh:property [
-    sh:path ( sh:property sh:in [ sh:zeroOrMorePath rdf:rest ] rdf:rest ) ;
+    sh:path ( sh:property sh:in ) ;
+    sh:memberShape [
+        sh:path rdfs:label ;
+    ] ;
   ] ;
 
 .

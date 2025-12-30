@@ -635,3 +635,31 @@ Deno.test("nested branches with each a simple Path toQueryPatterns", () => {
     },
   ]);
 });
+
+Deno.test("zeroOrOne path segment with isList toQueryPatterns", () => {
+  const branch = new Branch({
+    depth: 0,
+    resourceFetcher,
+    type: 'data',
+    isList: true,
+    path: [
+      {
+        quantifier: "zeroOrOne",
+        start: "subject",
+        end: "object",
+        predicates: [rf("maybe")],
+      },
+    ],
+  });
+
+  const patterns = branch.toQueryPatterns();
+  assertEquals(patterns, [
+    {
+      node_0: rf("resource"),
+    },
+    {
+      node_0: rf("resource"),
+      predicate_isList_1: rf("maybe"),
+    },
+  ]);
+});

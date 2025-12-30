@@ -15,6 +15,7 @@ export type QueryPattern = Record<string, Quad_Subject>;
 type BranchOptions = {
   depth: number;
   parent?: Branch;
+  isList?: boolean;
   resourceFetcher: ResourceFetcher;
   path: Path;
   propertyPointer?: Grapoi;
@@ -53,6 +54,7 @@ export class Branch {
   #queryCounter: number;
   #type: "data" | "shape";
   #propertyPointer?: Grapoi;
+  #isList: boolean = false;
 
   constructor({
     depth,
@@ -62,6 +64,7 @@ export class Branch {
     queryCounter,
     children,
     propertyPointer,
+    isList = false,
     type,
   }: BranchOptions) {
     this.#depth = depth;
@@ -70,6 +73,7 @@ export class Branch {
     this.#path = path;
     this.#queryCounter = queryCounter ?? 0;
     this.#type = type;
+    this.#isList = isList;
     this.#children = children ?? [];
     this.#propertyPointer = propertyPointer;
   }
@@ -153,10 +157,14 @@ export class Branch {
     const shapeBranches = (shaclPropertiesToFollow ?? []).map(
       (propertyPointer: Grapoi) => {
         const path = parsePath(propertyPointer.out(sh("path")));
+
+        const isList = !!propertyPointer.out(sh('memberShape')).term
+
         return new Branch({
           path,
           depth: this.#depth + 1,
           propertyPointer,
+          isList,
           resourceFetcher: this.#resourceFetcher,
           parent: this,
           type: "shape",
@@ -271,7 +279,8 @@ export class Branch {
         const segment = path[index];
         const prefix =
           segment.start === "object" ? "reverse_predicate" : "predicate";
-        pattern[`${prefix}_${index + 1}`] = predicate;
+        const isLastSegment = index === path.length - 1;
+        pattern[`${prefix}_${this.#isList && isLastSegment ? 'isList_' : ''}${index + 1}`] = predicate;
       });
       return pattern;
     });
@@ -469,6 +478,6 @@ export class Branch {
       })
       .join("\n");
 
-    return `${this.#done ? "✔" : "⏱"} ${path} ${this.#type.toUpperCase()} ${this.#done ? `(${this.#done})` : ""}${childrenDebug ? "\n" + childrenDebug : ""}`;
+    return `${this.#done ? "✔" : "⏱"} ${path} ${this.#isList ? "LIST" : ""} ${this.#type.toUpperCase()} ${this.#done ? `(${this.#done})` : ""}${childrenDebug ? "\n" + childrenDebug : ""}`;
   }
 }

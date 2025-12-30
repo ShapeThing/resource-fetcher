@@ -126,10 +126,12 @@ export class ResourceFetcher {
       const rootShapeBranches: Branch[] = properties.map(
         (propertyPointer: Grapoi) => {
           const path = parsePath(propertyPointer.out(sh("path")));
+          const isList = !!propertyPointer.out(sh('memberShape')).term
 
           return new Branch({
             path,
             depth: 1,
+            isList,
             propertyPointer,
             resourceFetcher: this,
             type: "shape",

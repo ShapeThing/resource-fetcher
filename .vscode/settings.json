@@ -1,6 +1,7 @@
 {
     "cSpell.words": [
         "Grapoi",
+        "overfetch",
         "shacl"
     ],
     "deno.enable": true
