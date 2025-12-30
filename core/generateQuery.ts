@@ -12,13 +12,18 @@ const generateValuesClause = (patterns: QueryPattern[]): string => {
   if (patterns.length === 0) return "";
 
   const keys = Object.keys(patterns[0]).sort();
-  const variables = keys.filter((key) => !key.includes("isList")).map((key) => `?${key}`).join(" ");
-
-  const hasList = keys.some((key) => key.includes("isList"));
-
-  if (keys.length === 1 && hasList) {
-    return "";
-  } // No VALUES clause for single isList variable
+  
+  // For isList predicates, we need to map them to regular predicate variable names
+  const variables = keys.map((key) => {
+    if (key.includes("isList")) {
+      // Extract the number and create the predicate variable name
+      const match = key.match(/predicate_isList_(\d+)/);
+      if (match) {
+        return `?predicate_${match[1]}`;
+      }
+    }
+    return `?${key}`;
+  }).join(" ");
 
   if (keys.length === 1) {
     // Single variable: no parentheses around values
@@ -35,7 +40,6 @@ const generateValuesClause = (patterns: QueryPattern[]): string => {
   const rows = patterns
     .map((pattern) => {
       const values = keys
-        .filter((key) => !key.includes("isList"))
         .map((key) => serializeTerm(pattern[key]))
         .join(" ");
       return `(${values})`;
@@ -64,12 +68,24 @@ const generateTriplePatterns = (pattern: QueryPattern): string => {
       const value = pattern[key];
 
       if (key.includes("isList")) {
-        const previousItemIsList = keys[i - 1]?.includes('isList');
-        const currentNode = nodeCounter === 0 ? `?node_0` : `?node_${previousItemIsList ? 'list_' : ''}${nodeCounter}`;
-        const nextNode = `?node_list_${nodeCounter + 1}`;
-        triples.push(`${currentNode} <${value.value}>/<http://www.w3.org/1999/02/22-rdf-syntax-ns#rest>*/<http://www.w3.org/1999/02/22-rdf-syntax-ns#first> ${nextNode}.`);
-        nodeCounter++;
-        isLastNodeList = true;
+        // Extract the predicate number
+        const match = key.match(/predicate_isList_(\d+)/);
+        if (match) {
+          const predicateNum = match[1];
+          const predicateVar = `?predicate_${predicateNum}`;
+          
+          const previousItemIsList = keys[i - 1]?.includes('isList');
+          const currentNode = nodeCounter === 0 ? `?node_0` : `?node_${previousItemIsList ? 'list_' : ''}${nodeCounter}`;
+          const nextNode = `?node_${nodeCounter + 1}`;
+          const listNode = `?node_list_${nodeCounter + 2}`;
+          
+          // First add the predicate itself as a normal triple pattern
+          triples.push(`${currentNode} ${predicateVar} ${nextNode}.`);
+          // Then add the list traversal pattern
+          triples.push(`${nextNode} <http://www.w3.org/1999/02/22-rdf-syntax-ns#rest>*/<http://www.w3.org/1999/02/22-rdf-syntax-ns#first> ${listNode}.`);
+          nodeCounter += 2; // Increment by 2: one for intermediate node, one for list node
+          isLastNodeList = true;
+        }
       } else if (key.startsWith("predicate_")) {
         const previousItemIsList = keys[i - 1]?.includes('isList');
         const currentNode = `?node_${previousItemIsList ? 'list_' : ''}${nodeCounter}`;
