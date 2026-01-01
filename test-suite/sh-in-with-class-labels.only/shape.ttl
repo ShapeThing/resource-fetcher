@@ -20,7 +20,9 @@
   sh:property [
     sh:path ( sh:property sh:in ) ;
     sh:memberShape [
+      sh:property [
         sh:path rdfs:label ;
+      ];
     ] ;
   ] ;
 
