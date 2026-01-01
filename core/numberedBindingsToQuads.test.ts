@@ -24,21 +24,20 @@ Deno.test("it parses simple bindings", () => {
 Deno.test("it parses a list", async () => {
   const bindings1: Bindings = BF.fromRecord({
     node_0: rf("subject"),
-    predicate_1: rf("predicate"),
+    predicate_0: rf("predicate"),
     node_list_1: rf("node1"),
   });
   const bindings2: Bindings = BF.fromRecord({
     node_0: rf("subject"),
-    predicate_1: rf("predicate"),
+    predicate_0: rf("predicate"),
     node_list_1: rf("node2"),
   });
   const bindings3: Bindings = BF.fromRecord({
     node_0: rf("subject"),
-    predicate_1: rf("predicate"),
+    predicate_0: rf("predicate"),
     node_list_1: rf("node3"),
   });
   const quads = numberedBindingsToQuads([bindings1, bindings2, bindings3]);
-
   const output = await write([...quads], {
     prefixes: {
       rf: "https://resource-fetcher.shapething.com/#",
@@ -48,6 +47,7 @@ Deno.test("it parses a list", async () => {
   assertEquals(output, `@prefix rf: <https://resource-fetcher.shapething.com/#> .
 @prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
 
-rf:subject rf:predicate (rf:node1 rf:node2 rf:node3) .
+rf:subject rdf:first rf:node1 ;
+  rdf:rest (rf:node2 rf:node3) .
 `);
 });

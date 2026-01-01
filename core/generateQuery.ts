@@ -12,18 +12,20 @@ const generateValuesClause = (patterns: QueryPattern[]): string => {
   if (patterns.length === 0) return "";
 
   const keys = Object.keys(patterns[0]).sort();
-  
+
   // For isList predicates, we need to map them to regular predicate variable names
-  const variables = keys.map((key) => {
-    if (key.includes("isList")) {
-      // Extract the number and create the predicate variable name
-      const match = key.match(/predicate_isList_(\d+)/);
-      if (match) {
-        return `?predicate_${match[1]}`;
+  const variables = keys
+    .map((key) => {
+      if (key.includes("isList")) {
+        // Extract the number and create the predicate variable name
+        const match = key.match(/predicate_isList_(\d+)/);
+        if (match) {
+          return `?predicate_${match[1]}`;
+        }
       }
-    }
-    return `?${key}`;
-  }).join(" ");
+      return `?${key}`;
+    })
+    .join(" ");
 
   if (keys.length === 1) {
     // Single variable: no parentheses around values
@@ -39,9 +41,7 @@ const generateValuesClause = (patterns: QueryPattern[]): string => {
   // Multiple variables: use parentheses
   const rows = patterns
     .map((pattern) => {
-      const values = keys
-        .map((key) => serializeTerm(pattern[key]))
-        .join(" ");
+      const values = keys.map((key) => serializeTerm(pattern[key])).join(" ");
       return `(${values})`;
     })
     .join("\n        ");
@@ -65,7 +65,6 @@ const generateTriplePatterns = (pattern: QueryPattern): string => {
     // Process all predicate keys
     for (let i = 0; i < keys.length; i++) {
       const key = keys[i];
-      const value = pattern[key];
 
       if (key.includes("isList")) {
         // Extract the predicate number
@@ -73,29 +72,34 @@ const generateTriplePatterns = (pattern: QueryPattern): string => {
         if (match) {
           const predicateNum = match[1];
           const predicateVar = `?predicate_${predicateNum}`;
-          
-          const previousItemIsList = keys[i - 1]?.includes('isList');
-          const currentNode = nodeCounter === 0 ? `?node_0` : `?node_${previousItemIsList ? 'list_' : ''}${nodeCounter}`;
+
+          const previousItemIsList = keys[i - 1]?.includes("isList");
+          const currentNode =
+            nodeCounter === 0
+              ? `?node_0`
+              : `?node_${previousItemIsList ? "list_" : ""}${nodeCounter}`;
           const nextNode = `?node_${nodeCounter + 1}`;
           const listNode = `?node_list_${nodeCounter + 2}`;
-          
+
           // First add the predicate itself as a normal triple pattern
           triples.push(`${currentNode} ${predicateVar} ${nextNode}.`);
           // Then add the list traversal pattern
-          triples.push(`${nextNode} <http://www.w3.org/1999/02/22-rdf-syntax-ns#rest>*/<http://www.w3.org/1999/02/22-rdf-syntax-ns#first> ${listNode}.`);
+          triples.push(
+            `${nextNode} <http://www.w3.org/1999/02/22-rdf-syntax-ns#rest>*/<http://www.w3.org/1999/02/22-rdf-syntax-ns#first> ${listNode}.`
+          );
           nodeCounter += 2; // Increment by 2: one for intermediate node, one for list node
           isLastNodeList = true;
         }
       } else if (key.startsWith("predicate_")) {
-        const previousItemIsList = keys[i - 1]?.includes('isList');
-        const currentNode = `?node_${previousItemIsList ? 'list_' : ''}${nodeCounter}`;
+        const previousItemIsList = keys[i - 1]?.includes("isList");
+        const currentNode = `?node_${previousItemIsList ? "list_" : ""}${nodeCounter}`;
         const nextNode = `?node_${nodeCounter + 1}`;
         triples.push(`${currentNode} ?${key} ${nextNode}.`);
         nodeCounter++;
         isLastNodeList = false;
       } else if (key.startsWith("reverse_predicate_")) {
-        const previousItemIsList = keys[i - 1]?.includes('isList');
-        const currentNode = `?node_${previousItemIsList ? 'list_' : ''}${nodeCounter}`;
+        const previousItemIsList = keys[i - 1]?.includes("isList");
+        const currentNode = `?node_${previousItemIsList ? "list_" : ""}${nodeCounter}`;
         const nextNode = `?node_${nodeCounter + 1}`;
         triples.push(`${nextNode} ?${key} ${currentNode}.`);
         nodeCounter++;
@@ -105,7 +109,7 @@ const generateTriplePatterns = (pattern: QueryPattern): string => {
   }
 
   // Overfetch one level: add one more triple pattern
-  const overfetchNode = `?node_${isLastNodeList ? 'list_' : ''}${nodeCounter}`;
+  const overfetchNode = `?node_${isLastNodeList ? "list_" : ""}${nodeCounter}`;
   const overfetchNextNode = `?node_${nodeCounter + 1}`;
   const overfetchPredicate = `?predicate_${nodeCounter + 1}`;
   triples.push(`${overfetchNode} ${overfetchPredicate} ${overfetchNextNode}.`);

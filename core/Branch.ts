@@ -1,4 +1,4 @@
-import { DatasetCore, Quad, Quad_Subject } from "@rdfjs/types";
+import { DatasetCore, Quad, Quad_Subject, Term } from "@rdfjs/types";
 import parsePath, { Path } from "./parsePath.ts";
 import { ResourceFetcher } from "../ResourceFetcher.ts";
 import { cartesianProduct } from "../helpers/cartesianProduct.ts";
@@ -7,8 +7,9 @@ import Grapoi from "../helpers/Grapoi.ts";
 import dataFactory from "@rdfjs/data-model";
 import { context } from "../helpers/context.ts";
 import { allShapeSubShapes } from "../helpers/allShapeSubShapes.ts";
-import { sh } from "../helpers/namespaces.ts";
+import { rdf, sh } from "../helpers/namespaces.ts";
 import datasetFactory from "@rdfjs/dataset";
+import { getListQuadsFromPointer } from "../helpers/getListQuadsFromPointer.ts";
 
 export type QueryPattern = Record<string, Quad_Subject>;
 
@@ -332,11 +333,17 @@ export class Branch {
     const thisBranchDataPointer = parentPointer.executeAll(this.#path);
     const pathQuads = [...thisBranchDataPointer.quads()];
     const overFetchQuads = [...thisBranchDataPointer.out().quads()];
+
+
+    const listQuads = getListQuadsFromPointer(thisBranchDataPointer)
+
     const quads = [
       // Quads from the current branch.
       ...pathQuads,
       // Quads from the over fetch.
       ...overFetchQuads,
+      // Quads from the list expansion (if any).
+      ...listQuads
     ];
     this.#results.push({ step, quads });
 
@@ -446,22 +453,27 @@ export class Branch {
   }
 
   getResults(subjects: Quad_Subject[]): Quad[] {
+    // TODO this might give some cruft, lets check if we can improve it at a later time.
+    const dataset = datasetFactory.dataset(
+        this.#results.flatMap((stepResults) => stepResults.quads)
+      )
     const branchDataPointer = grapoi({
       factory: dataFactory,
-      // TODO this might give some cruft, lets check if we can improve it at a later time.
-      dataset: datasetFactory.dataset(
-        this.#results.flatMap((stepResults) => stepResults.quads)
-      ),
+      dataset,
       terms: subjects,
     });
     const myQuads = [...branchDataPointer.executeAll(this.#path).quads()];
-    const nextSubjects = myQuads
+    const listQuads = getListQuadsFromPointer(branchDataPointer.executeAll(this.#path))
+
+    const nextSubjects = [...myQuads, ...listQuads]
       .map((q) => (q.object.termType !== "Literal" ? q.object : undefined))
       .filter(Boolean);
+
     const childQuads = this.#children.flatMap((child) =>
       child.getResults(nextSubjects)
     );
-    return [...myQuads, ...childQuads];
+
+    return [...myQuads, ...childQuads, ...listQuads];
   }
 
   debug(): string {
