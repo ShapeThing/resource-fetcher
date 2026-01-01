@@ -23,6 +23,7 @@ export class ResourceFetcher {
   #debug?: boolean;
   #shapesPointer?: Grapoi;
   #rootBranches: Branch[] = [];
+  #furtherShapes?: DatasetCore;
   #accumulatedDataset: DatasetCore<OurQuad>;
 
   constructor({
@@ -32,6 +33,7 @@ export class ResourceFetcher {
     sources = [],
     shapesPointer,
     debug,
+    furtherShapes
   }: {
     resourceIri: Quad_Subject;
     recursionStepMultiplier?: number;
@@ -39,6 +41,7 @@ export class ResourceFetcher {
     sources?: QuerySourceUnidentified[];
     shapesPointer?: Grapoi;
     debug?: boolean;
+    furtherShapes?: DatasetCore;
   }) {
     this.#resourceIri = resourceIri;
     this.#recursionStepMultiplier = recursionStepMultiplier;
@@ -47,6 +50,7 @@ export class ResourceFetcher {
     this.#shapesPointer = shapesPointer;
     this.#accumulatedDataset = datasetFactory.dataset<OurQuad>();
     this.#debug = debug;
+    this.#furtherShapes = furtherShapes;
   }
 
   get #engineOptions() {
@@ -59,6 +63,10 @@ export class ResourceFetcher {
 
   get shapesPointer() {
     return this.#shapesPointer;
+  }
+
+  get furtherShapes () {
+    return this.#furtherShapes;
   }
 
   get resourceIri(): Quad_Subject {

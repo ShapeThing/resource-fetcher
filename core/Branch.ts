@@ -1,6 +1,6 @@
 import { DatasetCore, Quad, Quad_Subject, Term } from "@rdfjs/types";
 import parsePath, { Path } from "./parsePath.ts";
-import { ResourceFetcher } from "../ResourceFetcher.ts";
+import { OurQuad, ResourceFetcher } from "../ResourceFetcher.ts";
 import { cartesianProduct } from "../helpers/cartesianProduct.ts";
 import grapoi from "grapoi";
 import Grapoi from "../helpers/Grapoi.ts";
@@ -10,6 +10,7 @@ import { allShapeSubShapes } from "../helpers/allShapeSubShapes.ts";
 import { rdf, sh } from "../helpers/namespaces.ts";
 import datasetFactory from "@rdfjs/dataset";
 import { getListQuadsFromPointer } from "../helpers/getListQuadsFromPointer.ts";
+import { getFocusNodes } from "./getFocusNodes.ts";
 
 export type QueryPattern = Record<string, Quad_Subject>;
 
@@ -93,28 +94,98 @@ export class Branch {
     return branch;
   }
 
-  createChildBranchesByListQuads(quads: Quad[]) {
-    if (!this.#isList || !this.#propertyPointer || !quads.length) return;
+  createChildBranchesByMemberShape() {
+    if (!this.#isList || !this.#propertyPointer) return;
 
-    const listProperties = allShapeSubShapes(this.#propertyPointer.out(sh('memberShape')))
+    const listProperties = allShapeSubShapes(
+      this.#propertyPointer.out(sh("memberShape"))
+    )
       .out(sh("property"))
       .hasOut(sh("path"));
 
-      const listBranches = listProperties.map((propertyPointer: Grapoi) => {
-        const path = parsePath(propertyPointer.out(sh("path")));
+    const listBranches = listProperties.map((propertyPointer: Grapoi) => {
+      const path = parsePath(propertyPointer.out(sh("path")));
 
-        return new Branch({
-          depth: this.#depth + 1,
-          resourceFetcher: this.#resourceFetcher,
-          path,
-          parent: this,
-          type: "shape",
-          propertyPointer,
-          isListMemberChild: true,
-        });
+      return new Branch({
+        depth: this.#depth + 1,
+        resourceFetcher: this.#resourceFetcher,
+        path,
+        parent: this,
+        type: "shape",
+        propertyPointer,
+        isListMemberChild: true,
       });
+    });
 
-    this.#children.push(...listBranches);
+    for (const branch of listBranches) {
+      const identity = JSON.stringify(branch.#path);
+      const identityExistsAsChild = this.children
+        .map((child) => JSON.stringify(child.#path))
+        .find((otherIdentity) => otherIdentity === identity);
+      if (!identityExistsAsChild) {
+        this.#children.push(branch);
+      }
+    }
+  }
+
+  // TODO in this function we will try to match the new quads against the given shapes given for "further matching".
+  // We must be careful here not to have recursion, not to fetch a whole family tree when we are fetching one person.
+  // and all kinds of other problems.
+  // https://w3c.github.io/data-shapes/shacl12-core/#targets these are the targets we can implement.
+  createChildBranchesByNewMatches(quads: OurQuad[]) {
+    if (!this.#resourceFetcher.furtherShapes) return;
+
+    const leafQuads = quads.filter((q) => q.isLeaf);
+    const leafSubjects = new Map(
+      leafQuads.map((q) => [q.subject.value, q.subject])
+    );
+
+    const dataPointer = grapoi({
+      dataset: datasetFactory.dataset(quads),
+      factory: dataFactory,
+      terms: [...leafSubjects.values()],
+    });
+
+    const shapesPointer = grapoi({
+      dataset: this.#resourceFetcher.furtherShapes,
+      factory: dataFactory,
+    });
+
+    const matches = getFocusNodes(shapesPointer, dataPointer);
+
+    for (const match of matches) {
+      const shaclPropertiesToFollow = allShapeSubShapes(match.shapes)
+        .out(sh("property"))
+        .hasOut(sh("path"));
+
+      const shapeBranches = shaclPropertiesToFollow.map(
+        (propertyPointer: Grapoi) => {
+          const path = parsePath(propertyPointer.out(sh("path")));
+
+          const isList = !!propertyPointer.out(sh("memberShape")).term;
+
+          return new Branch({
+            path,
+            depth: this.#depth + 1,
+            propertyPointer,
+            isList,
+            resourceFetcher: this.#resourceFetcher,
+            parent: this,
+            type: "shape",
+          });
+        }
+      );
+
+      for (const branch of shapeBranches) {
+        const identity = JSON.stringify(branch.#path);
+        const identityExistsAsChild = this.children
+          .map((child) => JSON.stringify(child.#path))
+          .find((otherIdentity) => otherIdentity === identity);
+        if (!identityExistsAsChild) {
+          this.#children.push(branch);
+        }
+      }
+    }
   }
 
   createChildBranchesByDataQuads(quads: Quad[]) {
@@ -249,13 +320,13 @@ export class Branch {
 
   getPathToRoot(includeSelf: boolean = true): Path {
     const pathSegments: Path = includeSelf ? [...this.#path] : [];
-    
+
     // If this is a list member child, don't include the list parent's path
     // because list members are traversed directly, not through the list path
     if (this.#isListMemberChild) {
       return pathSegments;
     }
-    
+
     let current: Branch | undefined = this.#parent;
 
     while (current) {
@@ -403,7 +474,7 @@ export class Branch {
       const valueQuads = listQuads.filter((q) =>
         q.predicate.equals(rdf("first"))
       );
-      this.createChildBranchesByListQuads(valueQuads);
+      if (valueQuads.length) this.createChildBranchesByMemberShape();
     }
 
     const quads = [
@@ -418,6 +489,8 @@ export class Branch {
 
     // Create branches for further property shapes
     this.createChildBranchesByPropertyPointer();
+
+    this.createChildBranchesByNewMatches(quads);
 
     // CBD expansion for blank nodes, only unique ones are ultimately added.
     this.createChildBranchesByDataQuads(quads);
