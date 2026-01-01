@@ -23,6 +23,7 @@ type BranchOptions = {
   type: "data" | "shape";
   queryCounter?: number;
   children?: Branch[];
+  isListMemberChild?: boolean;
 };
 
 export type StepResults = {
@@ -56,6 +57,7 @@ export class Branch {
   #type: "data" | "shape";
   #propertyPointer?: Grapoi;
   #isList: boolean = false;
+  #isListMemberChild: boolean = false;
 
   constructor({
     depth,
@@ -66,6 +68,7 @@ export class Branch {
     children,
     propertyPointer,
     isList = false,
+    isListMemberChild = false,
     type,
   }: BranchOptions) {
     this.#depth = depth;
@@ -75,6 +78,7 @@ export class Branch {
     this.#queryCounter = queryCounter ?? 0;
     this.#type = type;
     this.#isList = isList;
+    this.#isListMemberChild = isListMemberChild;
     this.#children = children ?? [];
     this.#propertyPointer = propertyPointer;
   }
@@ -87,6 +91,30 @@ export class Branch {
     let branch: Branch = this;
     while (branch.#parent) branch = branch.#parent;
     return branch;
+  }
+
+  createChildBranchesByListQuads(quads: Quad[]) {
+    if (!this.#isList || !this.#propertyPointer || !quads.length) return;
+
+    const listProperties = allShapeSubShapes(this.#propertyPointer.out(sh('memberShape')))
+      .out(sh("property"))
+      .hasOut(sh("path"));
+
+      const listBranches = listProperties.map((propertyPointer: Grapoi) => {
+        const path = parsePath(propertyPointer.out(sh("path")));
+
+        return new Branch({
+          depth: this.#depth + 1,
+          resourceFetcher: this.#resourceFetcher,
+          path,
+          parent: this,
+          type: "shape",
+          propertyPointer,
+          isListMemberChild: true,
+        });
+      });
+
+    this.#children.push(...listBranches);
   }
 
   createChildBranchesByDataQuads(quads: Quad[]) {
@@ -120,6 +148,26 @@ export class Branch {
     }
 
     const filteredPredicates = [...predicates].filter((predicate) => {
+      // Skip rdf:first and rdf:rest if this is a list branch - they're handled by list expansion
+      if (
+        this.#isList &&
+        (predicate === rdf("first").value || predicate === rdf("rest").value)
+      ) {
+        return false;
+      }
+
+      // For LIST branches, skip if predicate is already in this branch's path
+      // This is because list branches handle their predicates via list expansion,
+      // so we don't need child branches for them
+      if (this.#isList) {
+        const predicateInCurrentPath = this.#path.some((segment) =>
+          segment.predicates.some((p) => p.value === predicate)
+        );
+        if (predicateInCurrentPath) {
+          return false;
+        }
+      }
+
       const childStartsWithSamePredicate = this.#children.some((child) => {
         const firstPredicates = child.getFirstPredicatesInPath();
         return firstPredicates.some((p) => p.value === predicate);
@@ -152,14 +200,16 @@ export class Branch {
 
   createChildBranchesByPropertyPointer() {
     const shaclPropertiesToFollow = this.#propertyPointer
-      ? allShapeSubShapes(this.#propertyPointer).out(sh("property"))
+      ? allShapeSubShapes(this.#propertyPointer)
+          .out(sh("property"))
+          .hasOut(sh("path"))
       : null;
 
-    const shapeBranches = (shaclPropertiesToFollow ?? []).map(
+    const shapeBranches = [...(shaclPropertiesToFollow ?? [])].map(
       (propertyPointer: Grapoi) => {
         const path = parsePath(propertyPointer.out(sh("path")));
 
-        const isList = !!propertyPointer.out(sh('memberShape')).term
+        const isList = !!propertyPointer.out(sh("memberShape")).term;
 
         return new Branch({
           path,
@@ -199,9 +249,20 @@ export class Branch {
 
   getPathToRoot(includeSelf: boolean = true): Path {
     const pathSegments: Path = includeSelf ? [...this.#path] : [];
+    
+    // If this is a list member child, don't include the list parent's path
+    // because list members are traversed directly, not through the list path
+    if (this.#isListMemberChild) {
+      return pathSegments;
+    }
+    
     let current: Branch | undefined = this.#parent;
 
     while (current) {
+      // Stop if we reach a list parent, as list member children don't traverse through it
+      if (current.#isList) {
+        break;
+      }
       pathSegments.unshift(...current.#path);
       current = current.#parent;
     }
@@ -281,7 +342,9 @@ export class Branch {
         const prefix =
           segment.start === "object" ? "reverse_predicate" : "predicate";
         const isLastSegment = index === path.length - 1;
-        pattern[`${prefix}_${this.#isList && isLastSegment ? 'isList_' : ''}${index + 1}`] = predicate;
+        pattern[
+          `${prefix}_${this.#isList && isLastSegment ? "isList_" : ""}${index + 1}`
+        ] = predicate;
       });
       return pattern;
     });
@@ -334,8 +397,14 @@ export class Branch {
     const pathQuads = [...thisBranchDataPointer.quads()];
     const overFetchQuads = [...thisBranchDataPointer.out().quads()];
 
+    const listQuads = getListQuadsFromPointer(thisBranchDataPointer);
 
-    const listQuads = getListQuadsFromPointer(thisBranchDataPointer)
+    if (listQuads.length) {
+      const valueQuads = listQuads.filter((q) =>
+        q.predicate.equals(rdf("first"))
+      );
+      this.createChildBranchesByListQuads(valueQuads);
+    }
 
     const quads = [
       // Quads from the current branch.
@@ -343,7 +412,7 @@ export class Branch {
       // Quads from the over fetch.
       ...overFetchQuads,
       // Quads from the list expansion (if any).
-      ...listQuads
+      ...listQuads,
     ];
     this.#results.push({ step, quads });
 
@@ -412,10 +481,14 @@ export class Branch {
       .filter((q) => q.object.termType === "BlankNode")
       .map((q) => q.object);
 
+    // For LIST branches, blank nodes are handled by list expansion via listQuads
+    // So we can treat them as if there are no blank nodes for completion logic
+    const effectiveBlankNodes = this.#isList ? [] : blankNodes;
+
     // Don't mark as done if we have children (even if no blank nodes)
     // The children might need to traverse from named nodes (e.g., rdf:nil in lists)
     const hasNoBlankNodesAndNoChildren =
-      blankNodes.length === 0 && this.#children.length === 0;
+      effectiveBlankNodes.length === 0 && this.#children.length === 0;
 
     if (hasNoBlankNodesAndNoChildren) {
       this.#done = NO_BLANK_NODES;
@@ -435,7 +508,7 @@ export class Branch {
 
     // If we have no children but we have blank nodes, don't mark as done yet
     // We need another step to fetch the blank node data
-    if (!this.#children.length && blankNodes.length === 0) {
+    if (!this.#children.length && effectiveBlankNodes.length === 0) {
       this.#done = NO_CHILDREN;
       return;
     }
@@ -455,15 +528,17 @@ export class Branch {
   getResults(subjects: Quad_Subject[]): Quad[] {
     // TODO this might give some cruft, lets check if we can improve it at a later time.
     const dataset = datasetFactory.dataset(
-        this.#results.flatMap((stepResults) => stepResults.quads)
-      )
+      this.#results.flatMap((stepResults) => stepResults.quads)
+    );
     const branchDataPointer = grapoi({
       factory: dataFactory,
       dataset,
       terms: subjects,
     });
     const myQuads = [...branchDataPointer.executeAll(this.#path).quads()];
-    const listQuads = getListQuadsFromPointer(branchDataPointer.executeAll(this.#path))
+    const listQuads = getListQuadsFromPointer(
+      branchDataPointer.executeAll(this.#path)
+    );
 
     const nextSubjects = [...myQuads, ...listQuads]
       .map((q) => (q.object.termType !== "Literal" ? q.object : undefined))
