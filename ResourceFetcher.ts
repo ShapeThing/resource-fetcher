@@ -9,6 +9,7 @@ import { numberedBindingsToQuads } from "./core/numberedBindingsToQuads.ts";
 import dataFactory from "@rdfjs/data-model";
 import Grapoi from "./helpers/Grapoi.ts";
 import datasetFactory from "@rdfjs/dataset";
+import { QueryEngine } from "@comunica/query-sparql";
 
 export type OurQuad = Quad & { isLeaf?: boolean; isReverse?: boolean };
 
@@ -39,7 +40,7 @@ export class ResourceFetcher {
   }: {
     resourceIri: Quad_Subject;
     recursionStepMultiplier?: number;
-    engine: IQueryEngine;
+    engine?: IQueryEngine;
     sources?: QuerySourceUnidentified[];
     shapesPointer?: Grapoi;
     debug?: boolean;
@@ -48,7 +49,7 @@ export class ResourceFetcher {
   }) {
     this.#resourceIri = resourceIri;
     this.#recursionStepMultiplier = recursionStepMultiplier;
-    this.#engine = engine;
+    this.#engine = engine ?? new QueryEngine();
     this.#sources = sources;
     this.#shapesPointer = shapesPointer;
     this.#accumulatedDataset = datasetFactory.dataset<OurQuad>();

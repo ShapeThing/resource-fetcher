@@ -21,5 +21,6 @@
     "rules": {
       "exclude": ["no-this-alias"]
     }
-  }
+  },
+  "license": "GPL-3.0-only"
 }
