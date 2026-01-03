@@ -1,5 +1,9 @@
 ![Logo](https://storybook-shacl-renderer.shapething.com/logo.svg)
 
+# Current state
+
+Work in progress. If you test it out and find bugs please submit them and ideally submit a testsuite case PR so that we can document what should work.
+
 # Resource Fetcher
 
 A SHACL-guided RDF resource fetcher that retrieves all triples belonging to a specific IRI from RDF data sources, handling the complexities of blank nodes and nested data structures. It follows the concept of the Concise Bounded Description (CBD) and it extends it with SHACL.
