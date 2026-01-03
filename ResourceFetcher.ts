@@ -36,7 +36,7 @@ export class ResourceFetcher {
     shapesPointer,
     debug,
     furtherShapes,
-    maxFurtherShapesDepth = 2
+    maxFurtherShapesDepth = 2,
   }: {
     resourceIri: Quad_Subject;
     recursionStepMultiplier?: number;
@@ -66,11 +66,11 @@ export class ResourceFetcher {
     };
   }
 
-  get shapesPointer() {
+  get shapesPointer(): Grapoi | undefined {
     return this.#shapesPointer;
   }
 
-  get furtherShapes () {
+  get furtherShapes(): DatasetCore | undefined {
     return this.#furtherShapes;
   }
 
@@ -86,7 +86,10 @@ export class ResourceFetcher {
     return this.#recursionStepMultiplier;
   }
 
-  async execute() {
+  async execute(): Promise<{
+    results: OurQuad[];
+    steps: number;
+  }> {
     let step = 1;
     const maxSteps = 80; // Safety limit
 
@@ -143,7 +146,7 @@ export class ResourceFetcher {
       const rootShapeBranches: Branch[] = properties.map(
         (propertyPointer: Grapoi) => {
           const path = parsePath(propertyPointer.out(sh("path")));
-          const isList = !!propertyPointer.out(sh('memberShape')).term
+          const isList = !!propertyPointer.out(sh("memberShape")).term;
 
           return new Branch({
             path,
