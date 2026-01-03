@@ -18,7 +18,6 @@
     "npm:grapoi@^1.1.3": "1.1.3",
     "npm:jsonld-context-parser@3": "3.0.0",
     "npm:n3@^1.26.0": "1.26.0",
-    "npm:oxigraph@~0.5.2": "0.5.2",
     "npm:rdf-literal@2": "2.0.0",
     "npm:sparqljs@^3.7.3": "3.7.3"
   },
@@ -3916,9 +3915,6 @@
         "fn.name"
       ]
     },
-    "oxigraph@0.5.2": {
-      "integrity": "sha512-MWflvCpWjJ0sPf0g9fvi9axSyug6EwbsISRX7v9p0XlTUUfdsKw01dydLSGC9ppgfyuxo4keyB4sfMciKYn14Q=="
-    },
     "process@0.11.10": {
       "integrity": "sha512-cdGef/drWFoydD1JsMzuFf8100nZl+GT+yacc2bEced5f9Rjk4z+WtFUTBu9PhOi9j/jfmBPu0mMEY4wIdAF8A=="
     },
@@ -4383,7 +4379,6 @@
       "npm:grapoi@^1.1.3",
       "npm:jsonld-context-parser@3",
       "npm:n3@^1.26.0",
-      "npm:oxigraph@~0.5.2",
       "npm:rdf-literal@2",
       "npm:sparqljs@^3.7.3"
     ]

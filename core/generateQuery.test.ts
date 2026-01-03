@@ -210,3 +210,22 @@ Deno.test("zeroOrOne path segment with isList and other predicates before toQuer
 `)
   );
 });
+
+Deno.test("custom graph parameter", () => {
+  const query = generateQuery([
+    {
+      node_0: rf("resource"),
+      predicate_1: rf("predicateA"),
+    },
+  ], "http://example.org/custom-graph");
+  assertEquals(
+    normalize(query),
+    normalize(`SELECT * WHERE { GRAPH <http://example.org/custom-graph> {{
+        VALUES (?node_0 ?predicate_1) {
+            (<https://resource-fetcher.shapething.com/#resource> <https://resource-fetcher.shapething.com/#predicateA>)
+        }
+        ?node_0 ?predicate_1 ?node_1.
+        OPTIONAL { ?node_1 ?predicate_2 ?node_2. }
+    }}}`)
+  );
+});

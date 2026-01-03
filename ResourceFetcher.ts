@@ -27,6 +27,7 @@ export class ResourceFetcher {
   #furtherShapes?: DatasetCore;
   #maxFurtherShapesDepth: number;
   #accumulatedDataset: DatasetCore<OurQuad>;
+  #graph?: string;
 
   constructor({
     resourceIri,
@@ -37,6 +38,7 @@ export class ResourceFetcher {
     debug,
     furtherShapes,
     maxFurtherShapesDepth = 2,
+    graph,
   }: {
     resourceIri: Quad_Subject;
     recursionStepMultiplier?: number;
@@ -46,6 +48,7 @@ export class ResourceFetcher {
     debug?: boolean;
     furtherShapes?: DatasetCore;
     maxFurtherShapesDepth?: number;
+    graph?: string;
   }) {
     this.#resourceIri = resourceIri;
     this.#recursionStepMultiplier = recursionStepMultiplier;
@@ -56,6 +59,7 @@ export class ResourceFetcher {
     this.#debug = debug;
     this.#furtherShapes = furtherShapes;
     this.#maxFurtherShapesDepth = maxFurtherShapesDepth;
+    this.#graph = graph;
   }
 
   get #engineOptions() {
@@ -239,14 +243,14 @@ export class ResourceFetcher {
       // If there are shapes, get their patterns too.
       ...this.#rootBranches.flatMap((branch) => branch.toQueryPatterns()),
     ];
-    return generateQuery(queryPatterns);
+    return generateQuery(queryPatterns, this.#graph);
   }
 
   async #nextStep(step: number) {
     const queryPatterns = this.#rootBranches.flatMap((branch) =>
       branch.toQueryPatterns()
     );
-    const query = generateQuery(queryPatterns);
+    const query = generateQuery(queryPatterns, this.#graph);
     if (this.#debug) console.log(`%c#${step}: ${query}`, "color: yellow");
 
     const response = await this.#engine.queryBindings(

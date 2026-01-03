@@ -117,7 +117,7 @@ const generateTriplePatterns = (pattern: QueryPattern): string => {
   return triples.join("\n      ");
 };
 
-export const generateQuery = (patterns: QueryPattern[]): string => {
+export const generateQuery = (patterns: QueryPattern[], graph?: string): string => {
   // Group patterns by their keys
   const groupedPatterns = new Map<string, QueryPattern[]>();
 
@@ -149,9 +149,10 @@ export const generateQuery = (patterns: QueryPattern[]): string => {
   }
 
   const whereClause = unions.join("\n    UNION\n");
+  const graphClause = graph ? `<${graph}>` : '?g';
 
   return `SELECT * WHERE {
-  GRAPH ?g {
+  GRAPH ${graphClause} {
 ${whereClause}
   }
 }`;
