@@ -112,6 +112,11 @@ export class ResourceFetcher {
     results: OurQuad[];
     steps: number;
   }> {
+    // If no graph is specified, detect if the resource is in a single graph
+    if (!this.#graph) {
+      await this.#detectGraph();
+    }
+
     let step = 1;
     const maxSteps = 80; // Safety limit
 
@@ -234,6 +239,34 @@ export class ResourceFetcher {
 
     this.#rootBranches.push(...rootDataBranches);
     return quads;
+  }
+
+  async #detectGraph() {
+    const query = `SELECT DISTINCT ?g WHERE {
+  GRAPH ?g {
+    { <${this.#resourceIri.value}> ?p ?o }
+    UNION
+    { ?s ?p <${this.#resourceIri.value}> }
+  }
+} LIMIT 2`;
+
+    if (this.#debug) console.log(`%cGraph detection: ${query}`, "color: cyan");
+
+    const response = await this.#engine.queryBindings(
+      query,
+      this.#engineOptions
+    );
+    const bindings = await response.toArray();
+
+    if (bindings.length === 1) {
+      const graphTerm = bindings[0].get("g");
+      if (graphTerm && graphTerm.termType === "NamedNode") {
+        this.#graph = graphTerm.value;
+        if (this.#debug) console.log(`%cDetected single graph: ${this.#graph}`, "color: cyan");
+      }
+    } else if (this.#debug && bindings.length > 1) {
+      console.log(`%cDetected multiple graphs, using variable ?g`, "color: cyan");
+    }
   }
 
   #getInitialQuery() {
