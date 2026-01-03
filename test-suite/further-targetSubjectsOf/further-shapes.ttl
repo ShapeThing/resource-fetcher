@@ -10,13 +10,17 @@
 @prefix wdt: <http://www.wikidata.org/prop/direct/> .
 @prefix dcterms: <http://purl.org/dc/terms/> .
 @prefix faker: <https://fakerjs.dev/> .
-@prefix : <https://example.org/> .
+@prefix ex: <https://example.org/> .
 
-:Shape
+ex:Shape
   a sh:NodeShape ;
-  sh:targetClass :TheClass ;
+	sh:targetSubjectsOf ex:a ;
 
   sh:property [
     sh:path rdfs:label ;
+  ] ;
+
+  sh:property [
+    sh:path rdf:type ;
   ] ;
 .

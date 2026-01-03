@@ -25,6 +25,7 @@ type BranchOptions = {
   queryCounter?: number;
   children?: Branch[];
   isListMemberChild?: boolean;
+  furtherShapeDepth?: number;
 };
 
 export type StepResults = {
@@ -59,6 +60,7 @@ export class Branch {
   #propertyPointer?: Grapoi;
   #isList: boolean = false;
   #isListMemberChild: boolean = false;
+  #furtherShapeDepth: number = 1;
 
   constructor({
     depth,
@@ -71,6 +73,7 @@ export class Branch {
     isList = false,
     isListMemberChild = false,
     type,
+    furtherShapeDepth = 1,
   }: BranchOptions) {
     this.#depth = depth;
     this.#parent = parent;
@@ -82,6 +85,7 @@ export class Branch {
     this.#isListMemberChild = isListMemberChild;
     this.#children = children ?? [];
     this.#propertyPointer = propertyPointer;
+    this.#furtherShapeDepth = furtherShapeDepth;
   }
 
   get depth(): number {
@@ -128,12 +132,17 @@ export class Branch {
     }
   }
 
-  // TODO in this function we will try to match the new quads against the given shapes given for "further matching".
+  // In this function we will try to match the new quads against the given shapes given for "further matching".
   // We must be careful here not to have recursion, not to fetch a whole family tree when we are fetching one person.
   // and all kinds of other problems.
   // https://w3c.github.io/data-shapes/shacl12-core/#targets these are the targets we can implement.
   createChildBranchesByNewMatches(quads: OurQuad[]) {
     if (!this.#resourceFetcher.furtherShapes) return;
+
+    // Don't create further shape branches beyond the max depth
+    if (this.#furtherShapeDepth >= this.#resourceFetcher.maxFurtherShapesDepth) {
+      return;
+    }
 
     const leafQuads = quads.filter((q) => q.isLeaf);
     const leafSubjects = new Map(
@@ -143,7 +152,8 @@ export class Branch {
     const dataPointer = grapoi({
       dataset: datasetFactory.dataset(quads),
       factory: dataFactory,
-      terms: [...leafSubjects.values()],
+      // TODO removing this makes it so that we might over match shapes.
+      // terms: [...leafSubjects.values()],
     });
 
     const shapesPointer = grapoi({
@@ -172,6 +182,7 @@ export class Branch {
             resourceFetcher: this.#resourceFetcher,
             parent: this,
             type: "shape",
+            furtherShapeDepth: this.#furtherShapeDepth + 1,
           });
         }
       );

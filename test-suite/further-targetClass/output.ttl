@@ -3,4 +3,5 @@
 
 ex:thing1 ex:a ex:thing2 .
 
-ex:thing2 rdfs:label "Thing 2" .
+ex:thing2 a ex:TheClass ;
+  rdfs:label "Thing 2" .

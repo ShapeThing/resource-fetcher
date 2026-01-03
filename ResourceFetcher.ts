@@ -24,6 +24,7 @@ export class ResourceFetcher {
   #shapesPointer?: Grapoi;
   #rootBranches: Branch[] = [];
   #furtherShapes?: DatasetCore;
+  #maxFurtherShapesDepth: number;
   #accumulatedDataset: DatasetCore<OurQuad>;
 
   constructor({
@@ -33,7 +34,8 @@ export class ResourceFetcher {
     sources = [],
     shapesPointer,
     debug,
-    furtherShapes
+    furtherShapes,
+    maxFurtherShapesDepth = 2
   }: {
     resourceIri: Quad_Subject;
     recursionStepMultiplier?: number;
@@ -42,6 +44,7 @@ export class ResourceFetcher {
     shapesPointer?: Grapoi;
     debug?: boolean;
     furtherShapes?: DatasetCore;
+    maxFurtherShapesDepth?: number;
   }) {
     this.#resourceIri = resourceIri;
     this.#recursionStepMultiplier = recursionStepMultiplier;
@@ -51,6 +54,7 @@ export class ResourceFetcher {
     this.#accumulatedDataset = datasetFactory.dataset<OurQuad>();
     this.#debug = debug;
     this.#furtherShapes = furtherShapes;
+    this.#maxFurtherShapesDepth = maxFurtherShapesDepth;
   }
 
   get #engineOptions() {
@@ -67,6 +71,10 @@ export class ResourceFetcher {
 
   get furtherShapes () {
     return this.#furtherShapes;
+  }
+
+  get maxFurtherShapesDepth(): number {
+    return this.#maxFurtherShapesDepth;
   }
 
   get resourceIri(): Quad_Subject {
