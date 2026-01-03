@@ -1,13 +1,13 @@
-import { DatasetCore, NamedNode, Quad, Quad_Subject } from "@rdfjs/types";
+import type { DatasetCore, NamedNode, Quad, Quad_Subject } from "@rdfjs/types";
 import type { IQueryEngine, QuerySourceUnidentified } from "@comunica/types";
 import { allShapeSubShapes } from "./helpers/allShapeSubShapes.ts";
 import { sh } from "./helpers/namespaces.ts";
-import parsePath, { Path } from "./core/parsePath.ts";
-import { Branch, QueryPattern } from "./core/Branch.ts";
+import parsePath, { type Path } from "./core/parsePath.ts";
+import { Branch, type QueryPattern } from "./core/Branch.ts";
 import { generateQuery } from "./core/generateQuery.ts";
 import { numberedBindingsToQuads } from "./core/numberedBindingsToQuads.ts";
 import dataFactory from "@rdfjs/data-model";
-import Grapoi from "./helpers/Grapoi.ts";
+import type Grapoi from "./helpers/Grapoi.ts";
 import datasetFactory from "@rdfjs/dataset";
 import { QueryEngine } from "@comunica/query-sparql";
 
@@ -66,26 +66,44 @@ export class ResourceFetcher {
     };
   }
 
+  /**
+   * Get the shapes pointer if provided.
+   */
   get shapesPointer(): Grapoi | undefined {
     return this.#shapesPointer;
   }
 
+  /**
+   * Get the further shapes dataset if provided.
+   */
   get furtherShapes(): DatasetCore | undefined {
     return this.#furtherShapes;
   }
 
+  /**
+   * Get the maximum further shapes depth.
+   */
   get maxFurtherShapesDepth(): number {
     return this.#maxFurtherShapesDepth;
   }
 
+  /**
+   * Get the resource IRI.
+   */
   get resourceIri(): Quad_Subject {
     return this.#resourceIri;
   }
 
+  /**
+   * Get the recursion step multiplier.
+   */
   get recursionStepMultiplier(): number {
     return this.#recursionStepMultiplier;
   }
 
+  /**
+   * Runs the algorithm to fetch the resource and its related data.
+   */
   async execute(): Promise<{
     results: OurQuad[];
     steps: number;
@@ -130,6 +148,9 @@ export class ResourceFetcher {
     }
   }
 
+  /**
+   * Debugging method to print the current state of branches.
+   */
   debug() {
     if (this.#debug)
       console.info(
