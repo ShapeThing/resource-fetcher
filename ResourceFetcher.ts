@@ -24,8 +24,7 @@ export class ResourceFetcher {
   #debug?: boolean;
   #shapesPointer?: Grapoi;
   #rootBranches: Branch[] = [];
-  #furtherShapes?: DatasetCore;
-  #maxFurtherShapesDepth: number;
+  #maxNodeShapeDepth: number;
   #accumulatedDataset: DatasetCore<OurQuad>;
   #graph?: string;
 
@@ -36,8 +35,7 @@ export class ResourceFetcher {
     sources = [],
     shapesPointer,
     debug,
-    furtherShapes,
-    maxFurtherShapesDepth = 2,
+    maxNodeShapeDepth = 2,
     graph,
   }: {
     resourceIri: Quad_Subject;
@@ -46,8 +44,7 @@ export class ResourceFetcher {
     sources?: QuerySourceUnidentified[];
     shapesPointer?: Grapoi;
     debug?: boolean;
-    furtherShapes?: DatasetCore;
-    maxFurtherShapesDepth?: number;
+    maxNodeShapeDepth?: number;
     graph?: string;
   }) {
     this.#resourceIri = resourceIri;
@@ -57,8 +54,7 @@ export class ResourceFetcher {
     this.#shapesPointer = shapesPointer;
     this.#accumulatedDataset = datasetFactory.dataset<OurQuad>();
     this.#debug = debug;
-    this.#furtherShapes = furtherShapes;
-    this.#maxFurtherShapesDepth = maxFurtherShapesDepth;
+    this.#maxNodeShapeDepth = maxNodeShapeDepth;
     this.#graph = graph;
   }
 
@@ -78,17 +74,10 @@ export class ResourceFetcher {
   }
 
   /**
-   * Get the further shapes dataset if provided.
+   * Get the maximum sh:node recursion depth.
    */
-  get furtherShapes(): DatasetCore | undefined {
-    return this.#furtherShapes;
-  }
-
-  /**
-   * Get the maximum further shapes depth.
-   */
-  get maxFurtherShapesDepth(): number {
-    return this.#maxFurtherShapesDepth;
+  get maxNodeShapeDepth(): number {
+    return this.#maxNodeShapeDepth;
   }
 
   /**

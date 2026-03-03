@@ -10,7 +10,6 @@ import Grapoi from "../helpers/Grapoi.ts";
 import grapoi from "grapoi";
 import * as prefixes from "../helpers/namespaces.ts";
 import { discoverTestCases } from "./cases.ts";
-import { DatasetCore } from "@rdfjs/types";
 
 const serializedSource = (value: string) => ({
   type: "serialized",
@@ -42,18 +41,6 @@ for (const testCase of testCases) {
     }
     let shapesPointer: Grapoi | undefined = undefined;
 
-    let furtherShapes: undefined | DatasetCore = undefined;
-    if (testCase.furtherShapes) {
-      const parser = new Parser();
-      const quads = parser.parse(testCase.furtherShapes);
-      furtherShapes = datasetFactory.dataset();
-      if (furtherShapes) {
-        for (const quad of quads) {
-          furtherShapes.add(quad);
-        }
-      }
-    }
-
     if (testCase.shapeDefinition) {
       const parser = new Parser();
       const quads = parser.parse(testCase.shapeDefinition);
@@ -76,7 +63,6 @@ for (const testCase of testCases) {
       sources: [serializedSource(testCase.input)],
       shapesPointer,
       debug: Deno.env.has("DEBUG"),
-      furtherShapes
     });
 
     const { results, steps } = await resourceFetcher.execute();

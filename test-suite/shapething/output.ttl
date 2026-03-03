@@ -7,6 +7,16 @@
 @prefix stsr: <http://ontology.shapething.com/shacl-renderer#> .
 @prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
 
+<http://example.org/#addressShape> sh:property [
+    sh:group <http://example.org/#street-and-housenumber>
+  ], [
+    sh:group <http://example.org/#street-and-housenumber>
+  ], [
+    sh:group <http://example.org/#world>
+  ], [
+    sh:group <http://example.org/#world>
+  ] .
+
 <http://example.org/#death> a stsr:CollapsiblePropertyGroup, sh:PropertyGroup ;
   sh:name "Death"@en, "Overlijden"@nl ;
   sh:order 2 .
@@ -17,6 +27,12 @@
 
 <http://example.org/#name> a stsr:HorizontalPropertyGroup, sh:PropertyGroup ;
   sh:order 1 .
+
+<http://example.org/#street-and-housenumber> a stsr:HorizontalPropertyGroup, sh:PropertyGroup ;
+  sh:order 2 .
+
+<http://example.org/#world> a stsr:HorizontalPropertyGroup, sh:PropertyGroup ;
+  sh:order 3 .
 
 ex:shape a stsr:Faker, stsr:Shape, sh:NodeShape ;
   dash:stem <http://example.org/Mensen> ;

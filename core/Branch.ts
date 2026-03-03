@@ -1,6 +1,6 @@
 import { DatasetCore, Quad, Quad_Subject, Term } from "@rdfjs/types";
 import parsePath, { Path } from "./parsePath.ts";
-import { OurQuad, ResourceFetcher } from "../ResourceFetcher.ts";
+import { ResourceFetcher } from "../ResourceFetcher.ts";
 import { cartesianProduct } from "../helpers/cartesianProduct.ts";
 import grapoi from "grapoi";
 import Grapoi from "../helpers/Grapoi.ts";
@@ -10,9 +10,19 @@ import { allShapeSubShapes } from "../helpers/allShapeSubShapes.ts";
 import { rdf, sh } from "../helpers/namespaces.ts";
 import datasetFactory from "@rdfjs/dataset";
 import { getListQuadsFromPointer } from "../helpers/getListQuadsFromPointer.ts";
-import { getFocusNodes } from "./getFocusNodes.ts";
 
 export type QueryPattern = Record<string, Quad_Subject>;
+
+// Safe path identity using predicate .value strings — avoids JSON.stringify
+// on RDF objects which can have circular factory references.
+function pathIdentity(path: Path): string {
+  return path
+    .map(
+      (s) =>
+        `${s.quantifier}|${s.start}|${s.end}|${s.predicates.map((p) => p.value).join(",")}`
+    )
+    .join(";");
+}
 
 type BranchOptions = {
   depth: number;
@@ -25,7 +35,7 @@ type BranchOptions = {
   queryCounter?: number;
   children?: Branch[];
   isListMemberChild?: boolean;
-  furtherShapeDepth?: number;
+  nodeShapeDepth?: number;
 };
 
 export type StepResults = {
@@ -60,7 +70,7 @@ export class Branch {
   #propertyPointer?: Grapoi;
   #isList: boolean = false;
   #isListMemberChild: boolean = false;
-  #furtherShapeDepth: number = 1;
+  #nodeShapeDepth: number = 0;
 
   constructor({
     depth,
@@ -73,7 +83,7 @@ export class Branch {
     isList = false,
     isListMemberChild = false,
     type,
-    furtherShapeDepth = 1,
+    nodeShapeDepth = 0,
   }: BranchOptions) {
     this.#depth = depth;
     this.#parent = parent;
@@ -85,7 +95,7 @@ export class Branch {
     this.#isListMemberChild = isListMemberChild;
     this.#children = children ?? [];
     this.#propertyPointer = propertyPointer;
-    this.#furtherShapeDepth = furtherShapeDepth;
+    this.#nodeShapeDepth = nodeShapeDepth;
   }
 
   get depth(): number {
@@ -118,13 +128,14 @@ export class Branch {
         type: "shape",
         propertyPointer,
         isListMemberChild: true,
+        nodeShapeDepth: this.#nodeShapeDepth,
       });
     });
 
     for (const branch of listBranches) {
-      const identity = JSON.stringify(branch.#path);
+      const identity = pathIdentity(branch.#path);
       const identityExistsAsChild = this.children
-        .map((child) => JSON.stringify(child.#path))
+        .map((child) => pathIdentity(child.#path))
         .find((otherIdentity) => otherIdentity === identity);
       if (!identityExistsAsChild) {
         this.#children.push(branch);
@@ -132,69 +143,46 @@ export class Branch {
     }
   }
 
-  // In this function we will try to match the new quads against the given shapes given for "further matching".
-  // We must be careful here not to have recursion, not to fetch a whole family tree when we are fetching one person.
-  // and all kinds of other problems.
-  // https://w3c.github.io/data-shapes/shacl12-core/#targets these are the targets we can implement.
-  createChildBranchesByNewMatches(quads: OurQuad[]) {
-    if (!this.#resourceFetcher.furtherShapes) return;
+  // Lazily expand sh:node references from the property pointer.
+  // Called each process() step; deduplication prevents adding the same branch twice.
+  // nodeShapeDepth limits recursion depth when a shape references itself.
+  createChildBranchesByNodeShape() {
+    if (!this.#propertyPointer) return;
 
-    // Don't create further shape branches beyond the max depth
-    if (this.#furtherShapeDepth >= this.#resourceFetcher.maxFurtherShapesDepth) {
-      return;
-    }
+    const nodeShapePointer = this.#propertyPointer.out(sh("node"));
+    if (!nodeShapePointer.terms.length) return;
 
-    const leafQuads = quads.filter((q) => q.isLeaf);
-    const leafSubjects = new Map(
-      leafQuads.map((q) => [q.subject.value, q.subject])
+    if (this.#nodeShapeDepth >= this.#resourceFetcher.maxNodeShapeDepth) return;
+
+    const shaclPropertiesToFollow = allShapeSubShapes(nodeShapePointer)
+      .out(sh("property"))
+      .hasOut(sh("path"));
+
+    const shapeBranches = [...shaclPropertiesToFollow].map(
+      (propertyPointer: Grapoi) => {
+        const path = parsePath(propertyPointer.out(sh("path")));
+        const isList = !!propertyPointer.out(sh("memberShape")).term;
+
+        return new Branch({
+          path,
+          depth: this.#depth + 1,
+          propertyPointer,
+          isList,
+          resourceFetcher: this.#resourceFetcher,
+          parent: this,
+          type: "shape",
+          nodeShapeDepth: this.#nodeShapeDepth + 1,
+        });
+      }
     );
 
-    const dataPointer = grapoi({
-      dataset: datasetFactory.dataset(quads),
-      factory: dataFactory,
-      // TODO removing this makes it so that we might over match shapes.
-      // terms: [...leafSubjects.values()],
-    });
-
-    const shapesPointer = grapoi({
-      dataset: this.#resourceFetcher.furtherShapes,
-      factory: dataFactory,
-    });
-
-    const matches = getFocusNodes(shapesPointer, dataPointer);
-
-    for (const match of matches) {
-      const shaclPropertiesToFollow = allShapeSubShapes(match.shapes)
-        .out(sh("property"))
-        .hasOut(sh("path"));
-
-      const shapeBranches = shaclPropertiesToFollow.map(
-        (propertyPointer: Grapoi) => {
-          const path = parsePath(propertyPointer.out(sh("path")));
-
-          const isList = !!propertyPointer.out(sh("memberShape")).term;
-
-          return new Branch({
-            path,
-            depth: this.#depth + 1,
-            propertyPointer,
-            isList,
-            resourceFetcher: this.#resourceFetcher,
-            parent: this,
-            type: "shape",
-            furtherShapeDepth: this.#furtherShapeDepth + 1,
-          });
-        }
-      );
-
-      for (const branch of shapeBranches) {
-        const identity = JSON.stringify(branch.#path);
-        const identityExistsAsChild = this.children
-          .map((child) => JSON.stringify(child.#path))
-          .find((otherIdentity) => otherIdentity === identity);
-        if (!identityExistsAsChild) {
-          this.#children.push(branch);
-        }
+    for (const branch of shapeBranches) {
+      const identity = pathIdentity(branch.#path);
+      const identityExistsAsChild = this.children
+        .map((child) => pathIdentity(child.#path))
+        .find((otherIdentity) => otherIdentity === identity);
+      if (!identityExistsAsChild) {
+        this.#children.push(branch);
       }
     }
   }
@@ -301,14 +289,15 @@ export class Branch {
           resourceFetcher: this.#resourceFetcher,
           parent: this,
           type: "shape",
+          nodeShapeDepth: this.#nodeShapeDepth,
         });
       }
     );
 
     for (const branch of shapeBranches) {
-      const identity = JSON.stringify(branch.#path);
+      const identity = pathIdentity(branch.#path);
       const identityExistsAsChild = this.children
-        .map((child) => JSON.stringify(child.#path))
+        .map((child) => pathIdentity(child.#path))
         .find((otherIdentity) => otherIdentity === identity);
       if (!identityExistsAsChild) {
         this.#children.push(branch);
@@ -501,7 +490,8 @@ export class Branch {
     // Create branches for further property shapes
     this.createChildBranchesByPropertyPointer();
 
-    this.createChildBranchesByNewMatches(quads);
+    // Lazily expand sh:node references into child branches
+    this.createChildBranchesByNodeShape();
 
     // CBD expansion for blank nodes, only unique ones are ultimately added.
     this.createChildBranchesByDataQuads(quads);

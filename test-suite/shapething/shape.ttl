@@ -22,11 +22,16 @@
     sh:path sh:property ;
 
     sh:property [
+      sh:path sh:node ;
+      sh:node :Shape ;
+    ] ;
+
+    sh:property [
       sh:path sh:group ;
       sh:property [ sh:path sh:name ] ;
       sh:property [ sh:path rdf:type ] ;
       sh:property [ sh:path sh:order ] ;
-      sh:node <> ;
+      sh:node :Shape ;
     ] ;
   ] ;
 .

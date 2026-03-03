@@ -10,7 +10,6 @@ export const allShapeSubShapes = (shapesPointer: Grapoi) => {
     .flat()
     .flatMap(pointer => pointer.terms)
 
-  const nestedPointers = shapesPointer.out(sh('node')).terms
   const shapeTerms = shapesPointer.node([...logicalPointers]).out().terms
-  return shapesPointer.node([...shapeTerms, ...nestedPointers, ...originalNodes])
+  return shapesPointer.node([...shapeTerms, ...originalNodes])
 }

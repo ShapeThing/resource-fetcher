@@ -9,7 +9,6 @@ interface TestCase {
   output: string;
   shapeIri?: string;
   shapeDefinition?: string;
-  furtherShapes?: string;
 }
 
 
@@ -58,7 +57,6 @@ export async function discoverTestCases(baseDir: string): Promise<TestCase[]> {
     const output = await readFileIfExists(join(testPath, "output.ttl"));
     const shapeIri = await readFileIfExists(join(testPath, "shape-iri.txt"));
     const shapeDefinition = await readFileIfExists(join(testPath, "shape.ttl"));
-    const furtherShapes = await readFileIfExists(join(testPath, "further-shapes.ttl"));
 
     testCases.push({
       name: name.replace(".only", ""),
@@ -69,7 +67,6 @@ export async function discoverTestCases(baseDir: string): Promise<TestCase[]> {
       output: output ?? "",
       shapeIri: shapeIri?.trim(),
       shapeDefinition,
-      furtherShapes
     });
   }
 
