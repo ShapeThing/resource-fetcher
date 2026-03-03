@@ -493,20 +493,14 @@ export class Branch {
     // Lazily expand sh:node references into child branches
     this.createChildBranchesByNodeShape();
 
-    // Register nested fetches for named nodes found at positions where the
-    // sh:node constraint references the same shape as the current fetcher's
-    // shapesPointer (i.e. a self-referential/recursive shape). This covers
-    // both sh:path sh:node and sh:path sh:group when both carry sh:node :Shape,
-    // while correctly excluding sub-shape constraints like sh:node :addressShape
-    // on a different data path.
+    // Register nested fetches for named nodes found at positions where sh:node
+    // is specified in the property pointer. Each named node gets its own
+    // ResourceFetcher run (CBD + referenced shape paths), with deduplication
+    // via #fetchedNestedIris. This covers both self-referential shapes and
+    // non-self-referential ones (e.g. sh:node :PropertyShapeFetch).
     if (this.#propertyPointer) {
       const nodeShapePointer = this.#propertyPointer.out(sh("node"));
-      const rootShapeTerm = this.#resourceFetcher.shapesPointer?.term;
-      const isRecursiveShape =
-        nodeShapePointer.term != null &&
-        rootShapeTerm != null &&
-        nodeShapePointer.term.value === rootShapeTerm.value;
-      if (isRecursiveShape) {
+      if (nodeShapePointer.term != null) {
         for (const term of thisBranchDataPointer.terms) {
           if (term.termType === "NamedNode") {
             this.#resourceFetcher.registerNestedFetch(

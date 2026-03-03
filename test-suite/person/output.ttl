@@ -28,9 +28,11 @@ ex:allanDoyleAddress schema:addressLocality [
   ] ;
   schema:postalCode "73137" ;
   schema:streetAddress [
+    schema:extra "Woop" ;
     schema:number 15 ;
     schema:street "S Front Street"
   ], [
+    schema:extra "Woop2" ;
     schema:number 152 ;
     schema:street "S Front Street 2"
   ] .
