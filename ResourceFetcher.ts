@@ -27,6 +27,9 @@ export class ResourceFetcher {
   #maxNodeShapeDepth: number;
   #accumulatedDataset: DatasetCore<OurQuad>;
   #graph?: string;
+  #pendingNestedFetches: Array<{ resourceIri: Quad_Subject; nodeShapePointer: Grapoi }> = [];
+  #fetchedNestedIris: Set<string> = new Set();
+  #nestedResults: OurQuad[] = [];
 
   constructor({
     resourceIri,
@@ -64,6 +67,12 @@ export class ResourceFetcher {
       unionDefaultGraph: true,
       baseIRI: "http://example.org/",
     };
+  }
+
+  registerNestedFetch(resourceIri: Quad_Subject, nodeShapePointer: Grapoi) {
+    if (this.#fetchedNestedIris.has(resourceIri.value)) return;
+    this.#fetchedNestedIris.add(resourceIri.value);
+    this.#pendingNestedFetches.push({ resourceIri, nodeShapePointer });
   }
 
   /**
@@ -128,10 +137,15 @@ export class ResourceFetcher {
       this.debug();
     }
 
+    await this.#runPendingNestedFetches();
+
     return {
-      results: this.#rootBranches.flatMap((branch) =>
-        branch.getResults([this.#resourceIri])
-      ),
+      results: [
+        ...this.#rootBranches.flatMap((branch) =>
+          branch.getResults([this.#resourceIri])
+        ),
+        ...this.#nestedResults,
+      ],
       steps: step,
     };
   }
@@ -154,6 +168,28 @@ export class ResourceFetcher {
       console.info(
         this.#rootBranches.map((branch) => branch.debug()).join("\n") + "\n\n"
       );
+  }
+
+  async #runPendingNestedFetches() {
+    while (this.#pendingNestedFetches.length > 0) {
+      const batch = this.#pendingNestedFetches.splice(0);
+      const batchResults = await Promise.all(
+        batch.map(async ({ resourceIri, nodeShapePointer }) => {
+          const nestedFetcher = new ResourceFetcher({
+            resourceIri,
+            engine: this.#engine,
+            sources: this.#sources,
+            shapesPointer: nodeShapePointer,
+            graph: this.#graph,
+            maxNodeShapeDepth: this.#maxNodeShapeDepth,
+            debug: this.#debug,
+          });
+          const { results } = await nestedFetcher.execute();
+          return results;
+        })
+      );
+      this.#nestedResults.push(...batchResults.flat());
+    }
   }
 
   async #step1() {

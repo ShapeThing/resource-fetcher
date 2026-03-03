@@ -7,15 +7,43 @@
 @prefix stsr: <http://ontology.shapething.com/shacl-renderer#> .
 @prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
 
-<http://example.org/#addressShape> sh:property [
-    sh:group <http://example.org/#street-and-housenumber>
+<http://example.org/#addressShape> a stsr:SubShape, sh:NodeShape ;
+  sh:closed true ;
+  sh:ignoredProperties (rdf:type) ;
+  sh:name "Address"@en, "Adres"@nl ;
+  sh:property [
+    sh:datatype xsd:string ;
+    sh:group <http://example.org/#street-and-housenumber> ;
+    sh:maxCount 1 ;
+    sh:minCount 1 ;
+    sh:name "Straatnaam"@nl, "Street"@en ;
+    sh:path schema:streetAddress ;
+    faker:generator faker:location.street
   ], [
-    sh:group <http://example.org/#street-and-housenumber>
+    sh:datatype xsd:string ;
+    sh:group <http://example.org/#street-and-housenumber> ;
+    sh:maxCount 1 ;
+    sh:minCount 1 ;
+    sh:name "Postcode"@nl, "Zipcode"@en ;
+    sh:path schema:postalCode ;
+    faker:generator faker:location.zipCode
   ], [
-    sh:group <http://example.org/#world>
+    sh:datatype xsd:string ;
+    sh:group <http://example.org/#world> ;
+    sh:maxCount 1 ;
+    sh:minCount 1 ;
+    sh:name "Locality"@en, "Plaats"@nl ;
+    sh:path schema:addressLocality ;
+    faker:generator faker:location.city
   ], [
-    sh:group <http://example.org/#world>
-  ] .
+    sh:datatype xsd:string ;
+    sh:group <http://example.org/#world> ;
+    sh:maxCount 1 ;
+    sh:name "Country"@en, "Land"@nl ;
+    sh:path schema:addressCountry ;
+    faker:generator faker:location.country
+  ] ;
+  sh:targetClass schema:PostalAddress .
 
 <http://example.org/#death> a stsr:CollapsiblePropertyGroup, sh:PropertyGroup ;
   sh:name "Death"@en, "Overlijden"@nl ;
@@ -26,6 +54,7 @@
   sh:order 1 .
 
 <http://example.org/#name> a stsr:HorizontalPropertyGroup, sh:PropertyGroup ;
+  sh:group <http://example.org/#general> ;
   sh:order 1 .
 
 <http://example.org/#street-and-housenumber> a stsr:HorizontalPropertyGroup, sh:PropertyGroup ;
