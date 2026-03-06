@@ -43,6 +43,20 @@ export type StepResults = {
   quads: Quad[];
 };
 
+export type BranchSnapshot = {
+  /** Stable path identity string */
+  id: string;
+  /** Human-readable compact path, e.g. "schema:name" or "ex:address / ex:street" */
+  path: string;
+  type: "data" | "shape";
+  depth: number;
+  /** false while still running; a string reason once the branch is done */
+  done: false | string;
+  isList: boolean;
+  stepResults: { step: number; quadCount: number }[];
+  children: BranchSnapshot[];
+};
+
 const NO_RESULTS = "no-results";
 const NO_BLANK_NODES = "no-blank-nodes";
 const SAME_CONSECUTIVE_RESULT = "same-consecutive-result";
@@ -642,6 +656,28 @@ export class Branch {
     );
 
     return [...myQuads, ...childQuads, ...listQuads];
+  }
+
+  toSnapshot(): BranchSnapshot {
+    const path = this.#path
+      .map((segment) =>
+        segment.predicates.map((p) => context.compactIri(p.value)).join(" | ")
+      )
+      .join(" / ");
+
+    return {
+      id: pathIdentity(this.#path),
+      path,
+      type: this.#type,
+      depth: this.#depth,
+      done: this.#done,
+      isList: this.#isList,
+      stepResults: this.#results.map((r) => ({
+        step: r.step,
+        quadCount: r.quads.length,
+      })),
+      children: this.#children.map((c) => c.toSnapshot()),
+    };
   }
 
   debug(): string {

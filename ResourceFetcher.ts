@@ -3,7 +3,7 @@ import type { IQueryEngine, QuerySourceUnidentified } from "@comunica/types";
 import { allShapeSubShapes } from "./helpers/allShapeSubShapes.ts";
 import { sh } from "./helpers/namespaces.ts";
 import parsePath, { type Path } from "./core/parsePath.ts";
-import { Branch, type QueryPattern } from "./core/Branch.ts";
+import { Branch, type BranchSnapshot, type QueryPattern } from "./core/Branch.ts";
 import { generateQuery } from "./core/generateQuery.ts";
 import { numberedBindingsToQuads } from "./core/numberedBindingsToQuads.ts";
 import dataFactory from "@rdfjs/data-model";
@@ -14,6 +14,31 @@ import { QueryEngine } from "@comunica/query-sparql";
 export type OurQuad = Quad & { isLeaf?: boolean; isReverse?: boolean };
 
 /**
+ * Structured events emitted by ResourceFetcher during execution.
+ * Pass a callback of type `(event: DebugEvent) => void` as the `debug` option
+ * to receive them.
+ */
+export type DebugEvent =
+  /** A SPARQL query is about to be sent. step=0 means the graph-detection query. */
+  | { type: "query"; step: number; query: string }
+  /** One algorithm step finished. `branches` is a full snapshot of the branch tree. */
+  | { type: "step-complete"; step: number; newQuads: number; branches: BranchSnapshot[] }
+  /** A resource IRI was registered for a nested fetch. */
+  | { type: "nested-fetch"; resourceIri: string }
+  /** Graph detection result. `graph` is the IRI of the single detected graph, or null when multiple graphs are present. */
+  | { type: "graph-detected"; graph: string | null };
+
+function snapshotToString(snapshot: BranchSnapshot, indent = ""): string {
+  const done = snapshot.done ? `✔ (${snapshot.done})` : "⏱";
+  const list = snapshot.isList ? " LIST" : "";
+  const line = `${done} ${snapshot.path}${list} ${snapshot.type.toUpperCase()}`;
+  const children = snapshot.children
+    .map((c) => snapshotToString(c, indent + "  "))
+    .join("\n");
+  return indent + line + (children ? "\n" + children : "");
+}
+
+/**
  * ResourceFetcher class to fetch RDF resources with recursive branching.
  */
 export class ResourceFetcher {
@@ -21,7 +46,7 @@ export class ResourceFetcher {
   #recursionStepMultiplier: number;
   #engine: IQueryEngine;
   #sources: QuerySourceUnidentified[] = [];
-  #debug?: boolean;
+  #emit?: (event: DebugEvent) => void;
   #shapesPointer?: Grapoi;
   #rootBranches: Branch[] = [];
   #maxNodeShapeDepth: number;
@@ -30,6 +55,7 @@ export class ResourceFetcher {
   #pendingNestedFetches: Array<{ resourceIri: Quad_Subject; nodeShapePointer: Grapoi }> = [];
   #fetchedNestedIris: Set<string> = new Set();
   #nestedResults: OurQuad[] = [];
+  #nestedSteps: number = 0;
 
   constructor({
     resourceIri,
@@ -46,7 +72,7 @@ export class ResourceFetcher {
     engine?: IQueryEngine;
     sources?: QuerySourceUnidentified[];
     shapesPointer?: Grapoi;
-    debug?: boolean;
+    debug?: boolean | ((event: DebugEvent) => void);
     maxNodeShapeDepth?: number;
     graph?: string;
   }) {
@@ -56,7 +82,31 @@ export class ResourceFetcher {
     this.#sources = sources;
     this.#shapesPointer = shapesPointer;
     this.#accumulatedDataset = datasetFactory.dataset<OurQuad>();
-    this.#debug = debug;
+    if (debug) {
+      if (typeof debug === "function") {
+        this.#emit = debug;
+      } else {
+        // Shorthand: debug: true → pretty-print each event to the console
+        this.#emit = (event: DebugEvent) => {
+          if (event.type === "query") {
+            console.info(`[query #${event.step}]\n${event.query}`);
+          } else if (event.type === "step-complete") {
+            const tree = event.branches
+              .map((b) => snapshotToString(b))
+              .join("\n");
+            console.info(`[step ${event.step}] +${event.newQuads} quads\n${tree}\n`);
+          } else if (event.type === "nested-fetch") {
+            console.info(`[nested-fetch] ${event.resourceIri}`);
+          } else if (event.type === "graph-detected") {
+            console.info(
+              event.graph
+                ? `[graph-detected] ${event.graph}`
+                : "[graph-detected] multiple graphs"
+            );
+          }
+        };
+      }
+    }
     this.#maxNodeShapeDepth = maxNodeShapeDepth;
     this.#graph = graph;
   }
@@ -73,6 +123,7 @@ export class ResourceFetcher {
     if (this.#fetchedNestedIris.has(resourceIri.value)) return;
     this.#fetchedNestedIris.add(resourceIri.value);
     this.#pendingNestedFetches.push({ resourceIri, nodeShapePointer });
+    this.#emit?.({ type: "nested-fetch", resourceIri: resourceIri.value });
   }
 
   /**
@@ -124,7 +175,7 @@ export class ResourceFetcher {
       this.#accumulatedDataset.add(quad);
     }
     this.#processStepResults(this.#accumulatedDataset, step);
-    this.debug();
+    this.#emitStep(step, stepQuads.size);
 
     while (step < maxSteps && !this.#allBranchesDone()) {
       step++;
@@ -134,7 +185,7 @@ export class ResourceFetcher {
         this.#accumulatedDataset.add(quad);
       }
       this.#processStepResults(this.#accumulatedDataset, step);
-      this.debug();
+      this.#emitStep(step, stepQuads.size);
     }
 
     await this.#runPendingNestedFetches();
@@ -146,7 +197,7 @@ export class ResourceFetcher {
         ),
         ...this.#nestedResults,
       ],
-      steps: step,
+      steps: step + this.#nestedSteps,
     };
   }
 
@@ -160,14 +211,13 @@ export class ResourceFetcher {
     }
   }
 
-  /**
-   * Debugging method to print the current state of branches.
-   */
-  debug() {
-    if (this.#debug)
-      console.info(
-        this.#rootBranches.map((branch) => branch.debug()).join("\n") + "\n\n"
-      );
+  #emitStep(step: number, newQuads: number) {
+    this.#emit?.({
+      type: "step-complete",
+      step,
+      newQuads,
+      branches: this.#rootBranches.map((b) => b.toSnapshot()),
+    });
   }
 
   async #runPendingNestedFetches() {
@@ -182,9 +232,10 @@ export class ResourceFetcher {
             shapesPointer: nodeShapePointer,
             graph: this.#graph,
             maxNodeShapeDepth: this.#maxNodeShapeDepth,
-            debug: this.#debug,
+            debug: this.#emit,
           });
-          const { results } = await nestedFetcher.execute();
+          const { results, steps } = await nestedFetcher.execute();
+          this.#nestedSteps += steps;
           return results;
         })
       );
@@ -217,7 +268,7 @@ export class ResourceFetcher {
     }
 
     const initialQuery = this.#getInitialQuery();
-    if (this.#debug) console.log(`%c${initialQuery}`, "color: yellow");
+    this.#emit?.({ type: "query", step: 1, query: initialQuery });
     const response = await this.#engine.queryBindings(
       initialQuery,
       this.#engineOptions
@@ -275,7 +326,7 @@ export class ResourceFetcher {
   }
 } LIMIT 2`;
 
-    if (this.#debug) console.log(`%cGraph detection: ${query}`, "color: cyan");
+    this.#emit?.({ type: "query", step: 0, query });
 
     const response = await this.#engine.queryBindings(
       query,
@@ -287,10 +338,10 @@ export class ResourceFetcher {
       const graphTerm = bindings[0].get("g");
       if (graphTerm && graphTerm.termType === "NamedNode") {
         this.#graph = graphTerm.value;
-        if (this.#debug) console.log(`%cDetected single graph: ${this.#graph}`, "color: cyan");
+        this.#emit?.({ type: "graph-detected", graph: graphTerm.value });
       }
-    } else if (this.#debug && bindings.length > 1) {
-      console.log(`%cDetected multiple graphs, using variable ?g`, "color: cyan");
+    } else if (bindings.length > 1) {
+      this.#emit?.({ type: "graph-detected", graph: null });
     }
   }
 
@@ -309,7 +360,7 @@ export class ResourceFetcher {
       branch.toQueryPatterns()
     );
     const query = generateQuery(queryPatterns, this.#graph);
-    if (this.#debug) console.log(`%c#${step}: ${query}`, "color: yellow");
+    this.#emit?.({ type: "query", step, query });
 
     const response = await this.#engine.queryBindings(
       query,

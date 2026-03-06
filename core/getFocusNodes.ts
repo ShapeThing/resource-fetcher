@@ -1,7 +1,7 @@
 import factory from '@rdfjs/data-model'
-import { NamedNode } from '@rdfjs/types'
+import type { NamedNode } from '@rdfjs/types'
 import { dash, rdf, rdfs, sh, xsd } from '../helpers/namespaces.ts'
-import Grapoi from "../helpers/Grapoi.ts";
+import type Grapoi from "../helpers/Grapoi.ts";
 
 const filterOutBoolean = (predicate: NamedNode) => (pointer: Grapoi) =>
   pointer.out(predicate).term?.equals(factory.literal('true', xsd('boolean'))) !== true
