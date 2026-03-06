@@ -23,8 +23,8 @@ export type DebugEvent =
   | { type: "query"; step: number; query: string }
   /** One algorithm step finished. `branches` is a full snapshot of the branch tree. */
   | { type: "step-complete"; step: number; newQuads: number; branches: BranchSnapshot[] }
-  /** A resource IRI was registered for a nested fetch. */
-  | { type: "nested-fetch"; resourceIri: string }
+  /** A nested fetch completed. Contains the full event log and results of the nested execution. */
+  | { type: "nested-fetch"; resourceIri: string; events: DebugEvent[]; results: OurQuad[]; stepCount: number }
   /** Graph detection result. `graph` is the IRI of the single detected graph, or null when multiple graphs are present. */
   | { type: "graph-detected"; graph: string | null };
 
@@ -96,7 +96,7 @@ export class ResourceFetcher {
               .join("\n");
             console.info(`[step ${event.step}] +${event.newQuads} quads\n${tree}\n`);
           } else if (event.type === "nested-fetch") {
-            console.info(`[nested-fetch] ${event.resourceIri}`);
+            console.info(`[nested-fetch] ${event.resourceIri} (${event.stepCount} steps, ${event.results.length} quads)`);
           } else if (event.type === "graph-detected") {
             console.info(
               event.graph
@@ -123,7 +123,6 @@ export class ResourceFetcher {
     if (this.#fetchedNestedIris.has(resourceIri.value)) return;
     this.#fetchedNestedIris.add(resourceIri.value);
     this.#pendingNestedFetches.push({ resourceIri, nodeShapePointer });
-    this.#emit?.({ type: "nested-fetch", resourceIri: resourceIri.value });
   }
 
   /**
@@ -225,6 +224,7 @@ export class ResourceFetcher {
       const batch = this.#pendingNestedFetches.splice(0);
       const batchResults = await Promise.all(
         batch.map(async ({ resourceIri, nodeShapePointer }) => {
+          const nestedEvents: DebugEvent[] = [];
           const nestedFetcher = new ResourceFetcher({
             resourceIri,
             engine: this.#engine,
@@ -232,10 +232,18 @@ export class ResourceFetcher {
             shapesPointer: nodeShapePointer,
             graph: this.#graph,
             maxNodeShapeDepth: this.#maxNodeShapeDepth,
-            debug: this.#emit,
+            debug: (event) => nestedEvents.push(event),
           });
           const { results, steps } = await nestedFetcher.execute();
           this.#nestedSteps += steps;
+          const stepCount = nestedEvents.filter((e) => e.type === "step-complete").length;
+          this.#emit?.({
+            type: "nested-fetch",
+            resourceIri: resourceIri.value,
+            events: nestedEvents,
+            results,
+            stepCount,
+          });
           return results;
         })
       );
