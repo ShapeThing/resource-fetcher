@@ -1,8 +1,9 @@
 import { QueryEngine } from "@comunica/query-sparql";
-import { newEngine } from '@triplydb/speedy-memory'
-import { parse, Store } from '@triplydb/data-factory'
 import { Bindings } from "@comunica/utils-bindings-factory";
 import factory from '@rdfjs/data-model'
+
+const { newEngine } = await import('npm:@triplydb/speedy-memory')  
+const { parse, Store } = await import('npm:@triplydb/data-factory')
 
 const serializedSource = (value: string) => ({
     type: "serialized",
