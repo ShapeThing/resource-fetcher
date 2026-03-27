@@ -10,7 +10,7 @@ const serializedSource = (value: string) => ({
     baseIRI: "http://example.org/",
 });
 
-export const createQueryBindingsComunica = async (input: string) => {
+export const createQueryBindingsComunica = async (input: string): Promise<(query: string) => Promise<Bindings[]>> => {
     const engine = new QueryEngine();
     return async (query: string) => {
         const result = await engine.queryBindings(query, {
@@ -18,11 +18,11 @@ export const createQueryBindingsComunica = async (input: string) => {
             unionDefaultGraph: true,
             baseIRI: "http://example.org/",
         });
-        return result.toArray();
+        return result.toArray() as unknown as Bindings[];
     }
 }
 
-export const createQueryBindingsSpeedy = async (input: string) => {
+export const createQueryBindingsSpeedy = async (input: string): Promise<(query: string) => Promise<Bindings[]>> => {
     const { newEngine } = await import('npm:@triplydb/speedy-memory')
     const { parse, Store } = await import('npm:@triplydb/data-factory')
 
