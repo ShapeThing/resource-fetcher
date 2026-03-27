@@ -1,5 +1,5 @@
 import type { Bindings, DatasetCore, NamedNode, Quad, Quad_Subject } from "@rdfjs/types";
-import type { IQueryEngine, QuerySourceUnidentified } from "@comunica/types";
+import type { QuerySourceUnidentified } from "@comunica/types";
 import { allShapeSubShapes } from "./helpers/allShapeSubShapes.ts";
 import { sh } from "./helpers/namespaces.ts";
 import parsePath, { type Path } from "./core/parsePath.ts";
@@ -9,6 +9,7 @@ import { numberedBindingsToQuads } from "./core/numberedBindingsToQuads.ts";
 import dataFactory from "@rdfjs/data-model";
 import type Grapoi from "./helpers/Grapoi.ts";
 import datasetFactory from "@rdfjs/dataset";
+export { createQueryBindingsComunica, createQueryBindingsSpeedy } from "./test-suite/queryBindings.ts";
 
 export type OurQuad = Quad & { isLeaf?: boolean; isReverse?: boolean };
 
