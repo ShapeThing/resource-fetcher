@@ -2,9 +2,6 @@ import { QueryEngine } from "@comunica/query-sparql";
 import { Bindings } from "@comunica/utils-bindings-factory";
 import factory from '@rdfjs/data-model'
 
-const { newEngine } = await import('npm:@triplydb/speedy-memory')  
-const { parse, Store } = await import('npm:@triplydb/data-factory')
-
 const serializedSource = (value: string) => ({
     type: "serialized",
     value,
@@ -12,7 +9,7 @@ const serializedSource = (value: string) => ({
     baseIRI: "http://example.org/",
 });
 
-export const createQueryBindingsComunica = (input: string) => {
+export const createQueryBindingsComunica = async (input: string) => {
     const engine = new QueryEngine();
     return async (query: string) => {
         const result = await engine.queryBindings(query, {
@@ -24,7 +21,10 @@ export const createQueryBindingsComunica = (input: string) => {
     }
 }
 
-export const createQueryBindingsSpeedy = (input: string) => {
+export const createQueryBindingsSpeedy = async (input: string) => {
+    const { newEngine } = await import('npm:@triplydb/speedy-memory')
+    const { parse, Store } = await import('npm:@triplydb/data-factory')
+
     const quads = parse(input, {
         baseIri: "http://example.org/",
     });

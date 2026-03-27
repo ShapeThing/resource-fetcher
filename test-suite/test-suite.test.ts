@@ -95,7 +95,7 @@ for (const queryBindings of [createQueryBindingsComunica, createQueryBindingsSpe
 
       const resourceFetcher = new ResourceFetcher({
         resourceIri: dataFactory.namedNode(testCase.iri),
-        queryBindings: queryBindings(testCase.input),
+        queryBindings: await queryBindings(testCase.input),
         shapesPointer,
         debug: Deno.env.has("DEBUG"),
       });
