@@ -23,8 +23,8 @@ export const createQueryBindingsComunica = async (input: string): Promise<(query
 }
 
 export const createQueryBindingsSpeedy = async (input: string): Promise<(query: string) => Promise<Bindings[]>> => {
-    const { newEngine } = await import('npm:@triplydb/speedy-memory')
-    const { parse, Store } = await import('npm:@triplydb/data-factory')
+    const { newEngine } = await import('npm:@triplydb/speedy-memory@^11.0.3');
+    const { parse, Store } = await import('npm:@triplydb/data-factory@^6.0.0');
 
     const quads = parse(input, {
         baseIri: "http://example.org/",
