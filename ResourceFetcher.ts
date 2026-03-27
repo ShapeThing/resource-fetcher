@@ -1,4 +1,4 @@
-import type { DatasetCore, NamedNode, Quad, Quad_Subject } from "@rdfjs/types";
+import type { Bindings, DatasetCore, NamedNode, Quad, Quad_Subject } from "@rdfjs/types";
 import type { IQueryEngine, QuerySourceUnidentified } from "@comunica/types";
 import { allShapeSubShapes } from "./helpers/allShapeSubShapes.ts";
 import { sh } from "./helpers/namespaces.ts";
@@ -9,7 +9,6 @@ import { numberedBindingsToQuads } from "./core/numberedBindingsToQuads.ts";
 import dataFactory from "@rdfjs/data-model";
 import type Grapoi from "./helpers/Grapoi.ts";
 import datasetFactory from "@rdfjs/dataset";
-import { QueryEngine } from "@comunica/query-sparql";
 
 export type OurQuad = Quad & { isLeaf?: boolean; isReverse?: boolean };
 
@@ -38,13 +37,15 @@ function snapshotToString(snapshot: BranchSnapshot, indent = ""): string {
   return indent + line + (children ? "\n" + children : "");
 }
 
+export type QueryBindings = (query: string) => Promise<Bindings[]>
+
 /**
  * ResourceFetcher class to fetch RDF resources with recursive branching.
  */
 export class ResourceFetcher {
   #resourceIri: Quad_Subject;
   #recursionStepMultiplier: number;
-  #engine: IQueryEngine;
+  #queryBindings: QueryBindings;
   #sources: QuerySourceUnidentified[] = [];
   #emit?: (event: DebugEvent) => void;
   #shapesPointer?: Grapoi;
@@ -60,8 +61,7 @@ export class ResourceFetcher {
   constructor({
     resourceIri,
     recursionStepMultiplier = 3,
-    engine,
-    sources = [],
+    queryBindings,
     shapesPointer,
     debug,
     maxNodeShapeDepth = 2,
@@ -69,7 +69,7 @@ export class ResourceFetcher {
   }: {
     resourceIri: Quad_Subject;
     recursionStepMultiplier?: number;
-    engine?: IQueryEngine;
+    queryBindings: QueryBindings;
     sources?: QuerySourceUnidentified[];
     shapesPointer?: Grapoi;
     debug?: boolean | ((event: DebugEvent) => void);
@@ -78,8 +78,7 @@ export class ResourceFetcher {
   }) {
     this.#resourceIri = resourceIri;
     this.#recursionStepMultiplier = recursionStepMultiplier;
-    this.#engine = engine ?? new QueryEngine();
-    this.#sources = sources;
+    this.#queryBindings = queryBindings;
     this.#shapesPointer = shapesPointer;
     this.#accumulatedDataset = datasetFactory.dataset<OurQuad>();
     if (debug) {
@@ -109,14 +108,6 @@ export class ResourceFetcher {
     }
     this.#maxNodeShapeDepth = maxNodeShapeDepth;
     this.#graph = graph;
-  }
-
-  get #engineOptions() {
-    return {
-      sources: this.#sources,
-      unionDefaultGraph: true,
-      baseIRI: "http://example.org/",
-    };
   }
 
   registerNestedFetch(resourceIri: Quad_Subject, nodeShapePointer: Grapoi) {
@@ -161,7 +152,7 @@ export class ResourceFetcher {
     steps: number;
   }> {
     // If no graph is specified, detect if the resource is in a single graph
-    if (!this.#graph) {
+    if (this.#graph !== undefined) {
       await this.#detectGraph();
     }
 
@@ -227,7 +218,7 @@ export class ResourceFetcher {
           const nestedEvents: DebugEvent[] = [];
           const nestedFetcher = new ResourceFetcher({
             resourceIri,
-            engine: this.#engine,
+            queryBindings: this.#queryBindings,
             sources: this.#sources,
             shapesPointer: nodeShapePointer,
             graph: this.#graph,
@@ -277,12 +268,9 @@ export class ResourceFetcher {
 
     const initialQuery = this.#getInitialQuery();
     this.#emit?.({ type: "query", step: 1, query: initialQuery });
-    const response = await this.#engine.queryBindings(
-      initialQuery,
-      this.#engineOptions
-    );
 
-    const bindings = await response.toArray();
+    const bindings = await this.#queryBindings!(initialQuery);
+
     const quads = numberedBindingsToQuads(bindings);
     // Lets create data branches for the first level.
     const firstLevelQuads = [...quads].filter(
@@ -336,11 +324,9 @@ export class ResourceFetcher {
 
     this.#emit?.({ type: "query", step: 0, query });
 
-    const response = await this.#engine.queryBindings(
-      query,
-      this.#engineOptions
+    const bindings = await this.#queryBindings(
+      query
     );
-    const bindings = await response.toArray();
 
     if (bindings.length === 1) {
       const graphTerm = bindings[0].get("g");
@@ -370,11 +356,7 @@ export class ResourceFetcher {
     const query = generateQuery(queryPatterns, this.#graph);
     this.#emit?.({ type: "query", step, query });
 
-    const response = await this.#engine.queryBindings(
-      query,
-      this.#engineOptions
-    );
-    const bindings = await response.toArray();
+    const bindings = await this.#queryBindings(query);
     return numberedBindingsToQuads(bindings);
   }
 }

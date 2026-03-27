@@ -1,11 +1,15 @@
 import { assertEquals } from "@std/assert";
 import { Branch } from "../core/Branch.ts";
 import { ResourceFetcher } from "../ResourceFetcher.ts";
+import type { QueryBindings } from "../ResourceFetcher.ts";
 import { rf } from "../helpers/namespaces.ts";
-import { QueryEngine } from "@comunica/query-sparql";
 import dataFactory from '@rdfjs/data-model'
 
-const resourceFetcher = new ResourceFetcher({ resourceIri: rf("resource"), engine: new QueryEngine() });
+const resourceFetcher = {
+    resourceIri: rf("resource"),
+    maxNodeShapeDepth: 2,
+    recursionStepMultiplier: 3
+} as unknown as ResourceFetcher;
 
 Deno.test("single path segment toQueryPatterns", () => {
   const branch = new Branch({
@@ -361,7 +365,7 @@ Deno.test("oneOrMore path segment with recursionStepMultiplier of 2", () => {
   const customResourceFetcher = new ResourceFetcher({
     resourceIri: rf("resource"),
     recursionStepMultiplier: 2,
-    engine: new QueryEngine(),
+    queryBindings: undefined as unknown as QueryBindings,
   });
 
   const branch = new Branch({
