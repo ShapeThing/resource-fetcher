@@ -9,7 +9,6 @@ import { numberedBindingsToQuads } from "./core/numberedBindingsToQuads.ts";
 import dataFactory from "@rdfjs/data-model";
 import type Grapoi from "./helpers/Grapoi.ts";
 import datasetFactory from "@rdfjs/dataset";
-export { createQueryBindingsComunica, createQueryBindingsSpeedy } from "./test-suite/queryBindings.ts";
 
 export type OurQuad = Quad & { isLeaf?: boolean; isReverse?: boolean };
 
