@@ -4,53 +4,13 @@ import { ResourceFetcher } from "../ResourceFetcher.ts";
 import dataFactory from "@rdfjs/data-model";
 import { write } from "@jeswr/pretty-turtle";
 import { Parser } from "n3";
-import type { Quad } from "n3";
 import datasetFactory from "@rdfjs/dataset";
 import type Grapoi from "../helpers/Grapoi.ts";
 import grapoi from "grapoi";
 import * as prefixes from "../helpers/namespaces.ts";
 import { discoverTestCases } from "./cases.ts";
 import { createQueryBindingsComunica, createQueryBindingsSpeedy } from "./queryBindings.ts";
-
-/**
- * Parse a Turtle string and return a sorted array of canonical quad strings.
- * Blank node IDs are replaced with structural signatures so the result is
- * independent of the data-factory that assigned those IDs.
- */
-function toCanonicalQuads(turtle: string): string[] {
-  const parser = new Parser();
-  const parsed: Quad[] = parser.parse(turtle);
-
-  // Map blank node ID → all quads where it is the subject
-  const bnodeSubjectQuads = new Map<string, Quad[]>();
-  for (const q of parsed) {
-    if (q.subject.termType === "BlankNode") {
-      if (!bnodeSubjectQuads.has(q.subject.value)) {
-        bnodeSubjectQuads.set(q.subject.value, []);
-      }
-      bnodeSubjectQuads.get(q.subject.value)!.push(q);
-    }
-  }
-
-  function termSig(term: Quad["subject"] | Quad["predicate"] | Quad["object"], visited = new Set<string>()): string {
-    if (term.termType === "BlankNode") {
-      if (visited.has(term.value)) return "_:CYCLE";
-      const next = new Set(visited).add(term.value);
-      const sigs = (bnodeSubjectQuads.get(term.value) ?? [])
-        .map((t) => `${termSig(t.predicate, next)}=${termSig(t.object, next)}`)
-        .sort();
-      return `[${sigs.join(",")}]`;
-    }
-    if (term.termType === "Literal") {
-      return `"${term.value}"^^${term.datatype.value}@${term.language}`;
-    }
-    return term.value;
-  }
-
-  return parsed
-    .map((q) => `${termSig(q.subject)} ${termSig(q.predicate)} ${termSig(q.object)}`)
-    .sort();
-}
+import { toCanonicalQuads } from "./toCanonicalQuads.ts";
 
 // Discover and run test cases
 const testSuiteDir = dirname(new URL(import.meta.url).pathname);

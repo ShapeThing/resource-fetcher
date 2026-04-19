@@ -24,6 +24,9 @@
   },
   "license": "GPL-3.0-only",
   "name": "@shapething/resource-fetcher",
-  "version": "3.0.9",
-  "exports": "./ResourceFetcher.ts"
+  "version": "3.0.10",
+  "exports": "./ResourceFetcher.ts",
+  "publish": {
+    "exclude": ["test-suite/"]
+  }
 }
